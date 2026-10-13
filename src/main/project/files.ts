@@ -1,4 +1,4 @@
-import { lstatSync, realpathSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { lstatSync, realpathSync, existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { resolve, relative, isAbsolute, sep, dirname } from 'node:path';
 export function projectRelativePath(root: string, selected: string): string {
   if (!isAbsolute(selected)) throw new Error('선택한 원본 파일 경로를 확인해 주세요.');
@@ -18,6 +18,16 @@ export function projectRelativePath(root: string, selected: string): string {
   // Selecting the project root itself is also a valid manual folder selection.
   if (realpathSync(selected) === canonicalRoot) return '.';
   throw new Error('프로젝트 내부 파일이나 폴더를 선택해 주세요.');
+}
+// Same file under another spelling (case-insensitive FS, hard link) must map to one document.
+export function fileIdentity(root: string, path: string): string {
+  try {
+    const stat = statSync(safePath(root, path), { bigint: true });
+    if (stat.ino) return `${stat.dev}:${stat.ino}`;
+  } catch {
+    // Missing or blocked files fall back to the path spelling.
+  }
+  return 'path:' + (process.platform === 'win32' ? path.toLowerCase() : path);
 }
 export function safePath(root: string, path: string): string {
   if (!path || isAbsolute(path)) throw new Error('프로젝트 내부 상대 경로만 허용됩니다.');

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, lstatSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { projectRelativePath } from './project/files';
@@ -72,6 +72,9 @@ const schemas: Record<string, z.ZodType> = {
   discardDraft: z.tuple([id, z.string().max(4000)]),
   current: z.tuple([]),
   openProject: z.tuple([]),
+  resolveDocumentLink: z.tuple([id, id, id, z.string().max(4000)]),
+  previewLinkedDocument: z.tuple([id, id, id, z.string().max(4000)]),
+  openExternalDocumentLink: z.tuple([id, id, id, z.string().max(4000)]),
   openDroppedProject: z.tuple([z.array(z.string().min(1).max(4000)).max(30)]),
   previewProjectDocuments: z.tuple([]),
   previewDocumentPaths: z.tuple([z.enum(['files', 'folder'])]),
@@ -242,6 +245,23 @@ export function registerWorkspace(window: BrowserWindow) {
         return;
       case 'current':
         return store?.workspace() || null;
+      case 'resolveDocumentLink':
+      case 'previewLinkedDocument':
+      case 'openExternalDocumentLink': {
+        const current = requireStore();
+        if (current.root !== args[3])
+          throw new Error('프로젝트가 변경되어 링크 요청을 취소했습니다.');
+        const link = current.resolveDocumentLink(args[0], args[1], args[2]);
+        if (method === 'resolveDocumentLink') return link;
+        if (method === 'previewLinkedDocument') {
+          if (link.status !== 'unregistered' || !link.targetPath)
+            throw new Error('등록 가능한 원문 링크가 아닙니다.');
+          return stageRegistration([link.targetPath]);
+        }
+        if (link.status !== 'external') throw new Error('외부 HTTP(S) 원문 링크만 열 수 있습니다.');
+        await shell.openExternal(new URL(link.href).href);
+        return;
+      }
       case 'previewProjectDocuments':
         return stageRegistration();
       case 'previewDocumentPaths': {
@@ -421,7 +441,7 @@ export function registerWorkspace(window: BrowserWindow) {
         requireStore().addRelation(args[0], args[1], args[2]);
         return requireStore().workspace();
       case 'removeRelation':
-        requireStore().remove('relation', args[0]);
+        requireStore().removeRelation(args[0]);
         return requireStore().workspace();
       case 'updateRelation':
         requireStore().updateRelation(args[0], args[1]);
