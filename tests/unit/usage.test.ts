@@ -37,3 +37,13 @@ it('upserts one request, persists failed usage and labels older history instead 
     expect(summary.requests.find(r => r.id === 'request')?.status).toBe('error'); expect(summary.requests.find(r => r.id === 'old-request')?.usage.reason).toBe('no_history');
   } finally { store.close(); await rm(root, { recursive: true, force: true }); }
 });
+
+it('recovers interrupted usage on reopen without losing reported tokens', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'docflow-interrupted-usage-')); let store = await ProjectStore.open(root);
+  try {
+    store.saveUsage({ id: 'interrupted', provider: 'codex', model: 'test', createdAt: new Date().toISOString(), status: 'running', usage: normalizeCodexUsage({ inputTokens: 100, outputTokens: 30, totalTokens: 130 }) });
+    store.close(); store = await ProjectStore.open(root);
+    expect(store.usageSummary().requests[0]).toMatchObject({ status: 'error', usage: { totalTokens: 130 } });
+    expect(store.usageSummary().totals[0].totalTokens).toBe(130);
+  } finally { store.close(); await rm(root, { recursive: true, force: true }); }
+});

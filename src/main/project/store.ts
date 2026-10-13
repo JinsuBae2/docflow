@@ -16,6 +16,7 @@ export class ProjectStore {
     this.db.exec('PRAGMA journal_mode=WAL; PRAGMA user_version=1; CREATE TABLE IF NOT EXISTS records (kind TEXT NOT NULL, id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY(kind,id));');
     if (!this.all<Project>('project').length) this.put('project', { id: randomUUID(), name: basename(root), goal: '', constraints: '' });
     recoverPendingOperations(root, op => this.persistOperation(op));
+    for (const usage of this.all<RequestUsage>('usage')) if (usage.status === 'running') this.put('usage', { ...usage, status: 'error' });
     for (const feedback of this.all<RejectionFeedback>('feedback')) if (feedback.status === 'running') this.put('feedback', { ...feedback, status: 'failed' });
   }
   static async open(root: string) { mkdirSync(root, { recursive: true }); return new ProjectStore(realpathSync(root)); }
