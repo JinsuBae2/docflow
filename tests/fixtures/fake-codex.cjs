@@ -2,12 +2,14 @@ const readline = require('node:readline');
 const send = (value) => process.stdout.write(JSON.stringify(value) + '\n');
 readline.createInterface({ input: process.stdin }).on('line', (line) => {
   const m = JSON.parse(line);
-  const mode = process.argv[2];
+  const mode = process.argv[2] || process.env.DOCFLOW_TEST_ACCOUNT_MODE;
+  if (m.method === 'account/rateLimits/read' && process.env.DOCFLOW_TEST_LIMITS_ERROR === 'missing') { send({ id: m.id, result: {} }); return; }
+  if (m.method === 'account/rateLimits/read' && process.env.DOCFLOW_TEST_LIMITS_ERROR === 'invalid') { send({ id: m.id, result: { rateLimits: { primary: { usedPercent: -1 } } } }); return; }
   if (m.method === 'account/rateLimits/read' && (mode === 'old-server' || process.env.DOCFLOW_TEST_LIMITS_ERROR)) { send({ id: m.id, error: { code: -32601, message: mode === 'old-server' ? 'Method not found' : 'fixture limits unavailable' } }); return; }
   const result = m.method === 'account/read' ? { account: mode === 'no-account' ? null : { type: mode === 'api-account' ? 'apiKey' : 'chatgpt' } }
     : m.method === 'account/rateLimits/read' ? { rateLimitsByLimitId: { codex: { primary: { usedPercent: 25, windowDurationMins: 300, resetsAt: 1800000000 }, secondary: { usedPercent: 40, windowDurationMins: 10080, resetsAt: 1800600000 } } } }
     : m.method === 'model/list' ? { data: [{ model: 'test-balanced', displayName: 'Test Balanced', isDefault: true }, { model: 'test-fast', displayName: 'Test Fast', isDefault: false }], nextCursor: null }
-    : m.method === 'thread/start' ? { thread: { id: 'test-thread' } }
+    : m.method === 'thread/start' ? { thread: { id: 'test-thread' }, model: m.params.model || 'test-balanced' }
     : m.method === 'turn/start' ? { turn: { id: 'test-turn' } } : {};
   if (m.id !== undefined) send({ id: m.id, result });
   if (m.method === 'turn/start') setTimeout(() => {
