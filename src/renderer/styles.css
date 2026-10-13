@@ -2662,3 +2662,30 @@ button.document-link[data-link-status='missing-anchor'] {
   width: 100%;
   margin: 0;
 }
+.graph-hint {
+  display: block;
+  margin-top: 2px;
+}
+.doc-node .react-flow__handle.connectionindicator:hover,
+.doc-node .react-flow__handle.connectingto {
+  background: #155eef;
+  transform: translate(-50%, 50%) scale(1.5);
+}
+.doc-node .react-flow__handle-top.connectionindicator:hover,
+.doc-node .react-flow__handle-top.connectingto {
+  transform: translate(-50%, -50%) scale(1.5);
+}
+.relation-row.selected {
+  background: #edf4ff;
+  box-shadow: inset 3px 0 #155eef;
+  padding-left: 8px;
+}
+.relation-origin.origin-markdown {
+  color: #087f8c;
+}
+.relation-origin.origin-ai {
+  color: #1763ef;
+}
+.relation-row > .relation-source-link {
+  margin-left: auto;
+}

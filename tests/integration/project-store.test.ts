@@ -40,6 +40,20 @@ describe('Project storage', () => {
     expect(store.workspace().project.goal).toBe('맥락 보존');
     store.close();
   });
+  it('rejects duplicate manual links but keeps AI acceptance idempotent', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'docflow-store-'));
+    roots.push(root);
+    const store = await ProjectStore.open(root);
+    const a = await store.createDocument('목표', 'prd', '# 목표');
+    const b = await store.createDocument('흐름', 'feature', '# 흐름');
+    const first = store.addRelation(a.id, b.id, '구현');
+    expect(() => store.addRelation(a.id, b.id, '구현')).toThrow(/이미 있습니다/);
+    expect(() => store.addRelation(a.id, a.id, '구현')).toThrow();
+    expect(store.addRelation(a.id, b.id, '구현', 'ai').id).toBe(first.id);
+    expect(store.addRelation(b.id, a.id, '구현').origin).toBe('manual');
+    expect(store.workspace().relations).toHaveLength(2);
+    store.close();
+  });
   it('rejects traversal and symlinks and preserves externally edited content', async () => {
     const root = await mkdtemp(join(tmpdir(), 'docflow-path-'));
     roots.push(root);

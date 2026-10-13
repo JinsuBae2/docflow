@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -12,7 +12,14 @@ import {
 import { layoutDocuments } from './layout';
 import '@xyflow/react/dist/style.css';
 import { ArrowUpRight, Link2, Unlink, Pencil, Sparkles } from 'lucide-react';
-import type { Workspace } from '../../../shared/contracts';
+import type { Relation, Workspace } from '../../../shared/contracts';
+const origins = {
+  markdown: { label: '원문 링크', color: '#087f8c', dash: '3 3' },
+  ai: { label: 'AI 수락', color: '#1763ef', dash: undefined },
+  manual: { label: '직접 연결', color: '#526581', dash: undefined },
+  stored: { label: '저장된 관계', color: '#526581', dash: undefined },
+};
+const originOf = (r: Relation) => origins[r.origin || 'stored'];
 const labels = {
   overview: '개요',
   prd: 'PRD',
@@ -28,7 +35,7 @@ function DocumentNode({
 }) {
   return (
     <>
-      <Handle type="target" position={Position.Top} />
+      <Handle type="target" position={Position.Top} aria-label={`${data.title} 연결 받기`} />
       <div className={'graph-node-content graph-type-' + data.type}>
         <span className={'type-label type-' + data.type}>{labels[data.type]}</span>
         <strong>{data.title}</strong>
@@ -37,7 +44,12 @@ function DocumentNode({
           <ArrowUpRight size={14} />
         </span>
       </div>
-      <Handle type="source" position={Position.Bottom} />
+      <Handle
+        type="source"
+        position={Position.Bottom}
+        aria-label={`${data.title}에서 연결 시작`}
+        title="다른 문서로 끌어 연결"
+      />
     </>
   );
 }
@@ -103,7 +115,7 @@ export function ProjectGraph({
 }: {
   workspace: Workspace;
   onSelect: (id: string) => void;
-  onConnect: () => void;
+  onConnect: (fromId?: string, toId?: string) => void;
   onRemove: (id: string) => void;
   onReview: () => void;
   onEdit: (id: string, type: string) => Promise<void>;
@@ -111,6 +123,15 @@ export function ProjectGraph({
 }) {
   const [editing, setEditing] = useState('');
   const [relationType, setRelationType] = useState('');
+  const [selected, setSelected] = useState('');
+  // Releasing a connection drag on a node also fires a click; ignore it so a dropped line does not navigate.
+  const connecting = useRef(false);
+  useEffect(() => {
+    if (!selected) return;
+    document
+      .querySelector(`[data-relation-id="${CSS.escape(selected)}"]`)
+      ?.scrollIntoView({ block: 'nearest' });
+  }, [selected]);
   const owner = (id: string) =>
     workspace.documents.find((d) => d.id === id || d.sections.some((s) => s.id === id));
   const nodes = useMemo(() => {
@@ -134,6 +155,7 @@ export function ProjectGraph({
   const edges = workspace.relations.flatMap((r) => {
     const from = owner(r.fromId);
     const to = owner(r.toId);
+    const origin = originOf(r);
     return from && to
       ? [
           {
@@ -141,12 +163,15 @@ export function ProjectGraph({
             source: from.id,
             target: to.id,
             type: 'smoothstep',
+            selected: r.id === selected,
+            className: 'relation-edge origin-' + (r.origin || 'stored'),
+            ariaLabel: `${origin.label}: ${from.title} → ${to.title} (${r.type})`,
             label: r.origin === 'markdown' ? '원문 링크' : r.type,
-            markerEnd: { type: MarkerType.ArrowClosed, color: '#526581' },
+            markerEnd: { type: MarkerType.ArrowClosed, color: origin.color },
             style: {
-              stroke: r.origin === 'markdown' ? '#087f8c' : '#526581',
-              strokeWidth: 1.7,
-              strokeDasharray: r.origin === 'markdown' ? '3 3' : undefined,
+              stroke: origin.color,
+              strokeWidth: r.id === selected ? 3 : 1.7,
+              strokeDasharray: origin.dash,
             },
             labelStyle: { fill: '#344054', fontSize: 12, fontWeight: 600 },
             labelBgPadding: [8, 5] as [number, number],
@@ -182,6 +207,9 @@ export function ProjectGraph({
             {workspace.documents.length}개 문서 · {workspace.relations.length}개 연결
             {pending.length > 0 && ` · AI 검토 대기 ${pending.length}개`}
           </span>
+          <span className="graph-hint">
+            문서 아래 연결점을 다른 문서로 끌어 연결하거나 연결 추가를 사용하세요.
+          </span>
         </div>
         <div className="action-row">
           <button
@@ -193,7 +221,11 @@ export function ProjectGraph({
             <Sparkles size={14} />
             AI로 관계 검토
           </button>
-          <button className="button compact" onClick={onConnect}>
+          <button
+            className="button compact"
+            disabled={busy || workspace.documents.length < 2}
+            onClick={() => onConnect()}
+          >
             <Link2 size={14} />
             연결 추가
           </button>
@@ -208,8 +240,17 @@ export function ProjectGraph({
           fitView
           fitViewOptions={{ padding: 0.3, maxZoom: 1 }}
           nodesDraggable={false}
-          nodesConnectable={false}
-          onNodeClick={(_e, node) => onSelect(node.id)}
+          nodesConnectable={!busy}
+          isValidConnection={(c) => !!c.source && !!c.target && c.source !== c.target}
+          onConnectStart={() => (connecting.current = true)}
+          onConnectEnd={() => setTimeout(() => (connecting.current = false))}
+          onConnect={(c) => c.source && c.target && onConnect(c.source, c.target)}
+          deleteKeyCode={null}
+          onEdgeClick={(_e, edge) => {
+            if (workspace.relations.some((r) => r.id === edge.id)) setSelected(edge.id);
+          }}
+          onPaneClick={() => setSelected('')}
+          onNodeClick={(_e, node) => !connecting.current && onSelect(node.id)}
           minZoom={0.2}
           maxZoom={2}
         >
@@ -227,19 +268,13 @@ export function ProjectGraph({
         {workspace.relations.length ? (
           workspace.relations.map((r) => (
             <div
-              className="relation-row"
+              className={'relation-row' + (r.id === selected ? ' selected' : '')}
               data-relation-id={r.id}
               data-origin={r.origin || 'stored'}
               key={r.id}
             >
-              <small className="relation-origin">
-                {r.origin === 'markdown'
-                  ? '원문 링크'
-                  : r.origin === 'ai'
-                    ? 'AI 수락'
-                    : r.origin === 'manual'
-                      ? '직접 연결'
-                      : '저장된 관계'}
+              <small className={'relation-origin origin-' + (r.origin || 'stored')}>
+                {originOf(r).label}
               </small>
               <button onClick={() => onSelect(owner(r.fromId)?.id || '')}>
                 {owner(r.fromId)?.title || '연결 확인 필요'}
@@ -274,7 +309,13 @@ export function ProjectGraph({
                 {owner(r.toId)?.title || '연결 확인 필요'}
               </button>
               {r.origin === 'markdown' ? (
-                <small>원문에서 수정</small>
+                <button
+                  className="text-button relation-source-link"
+                  data-tooltip="원문 링크는 문서 본문에서 수정·제거합니다. 여기서는 해제할 수 없습니다."
+                  onClick={() => onSelect(owner(r.fromId)?.id || '')}
+                >
+                  원문 열기
+                </button>
               ) : (
                 <>
                   <button
