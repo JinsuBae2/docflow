@@ -1,0 +1,14 @@
+node_modules/
+out/
+dist/
+work/
+outputs/
+test-results/
+playwright-report/
+.superpowers/
+.workspace/
+**/*.db
+**/*.enc
+**/*.md
+examples/
+package-lock.json

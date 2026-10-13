@@ -23,7 +23,7 @@ Docflow는 기획 문서와 결정이 여러 파일에 흩어지는 문제를 �
 
 ## 실행하기
 
-개발 실행에는 Node.js 24, npm, Git이 필요합니다.
+개발 실행에는 Node.js 24.11 이상(24.x), npm, Git이 필요합니다.
 
 ```sh
 git clone https://github.com/JinsuBae2/docflow.git
