@@ -12,7 +12,8 @@ const roots: string[] = [];
 const stores: ProjectStore[] = [];
 afterEach(async () => {
   stores.splice(0).forEach((store) => store.close());
-  for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
+  for (const root of roots.splice(0))
+    await rm(root, { recursive: true, force: true, maxRetries: 5 });
 });
 async function fixture() {
   const root = await mkdtemp(join(tmpdir(), 'docflow-linked-'));

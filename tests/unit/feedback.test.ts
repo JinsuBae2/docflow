@@ -38,7 +38,7 @@ async function fixture() {
     proposals,
     async close() {
       this.store.close();
-      await rm(root, { recursive: true, force: true });
+      await rm(root, { recursive: true, force: true, maxRetries: 5 });
     },
   };
 }
