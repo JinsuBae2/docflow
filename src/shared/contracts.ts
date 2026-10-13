@@ -72,7 +72,7 @@ export interface WorkspaceApi {
   acceptProposal(id: Id): Promise<Workspace>;
   rejectProposal(id: Id, reason?: string): Promise<Workspace>;
   sendRejection(proposalId: Id, reason: string, feedbackId: Id, input: ContextInput, projectRoot: string): Promise<Id | null>;
-  retryRejection(feedbackId: Id, input: ContextInput, projectRoot: string): Promise<Id>;
+  retryRejection(feedbackId: Id, input: ContextInput, projectRoot: string): Promise<Id | null>;
   providerStatus(provider?: AiProviderId): Promise<ProviderStatus>;
   onRequestEvent(listener: (event: RequestEvent) => void): () => void;
 }

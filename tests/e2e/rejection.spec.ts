@@ -18,7 +18,7 @@ async function close(app: ElectronApplication) { await app.evaluate(({ BrowserWi
 test('opens rejection input, cancels without changes, sends an empty reason without AI, then continues in chat', async () => {
   const f = await setup(); const app = await f.launch();
   try {
-    const page = await app.firstWindow(); await page.getByRole('button', { name: '제안', exact: true }).click();
+    const page = await app.firstWindow(); await expect(page.getByRole('heading', { name: '거절 검토 예제', exact: true })).toBeVisible(); await page.locator('.assistant-tabs').getByRole('button', { name: /^제안/ }).click();
     const before = await page.evaluate(() => window.workspace.current());
     await page.getByRole('button', { name: '제안 거절' }).first().click();
     await expect(page.getByRole('textbox', { name: '거절 이유', exact: true })).toBeVisible();
@@ -60,7 +60,8 @@ test('preserves failed feedback after restart, retries once and blocks duplicate
     }, input); expect(blocked).toBe(true);
     await expect.poll(async () => (await page.evaluate(() => window.workspace.current()))!.feedbacks?.[0].status).toBe('failed');
     await close(app); app = await f.launch(); page = await app.firstWindow();
-    await page.getByRole('button', { name: '제안', exact: true }).click();
+    await expect(page.getByRole('heading', { name: '거절 검토 예제', exact: true })).toBeVisible();
+    await page.locator('.assistant-tabs').getByRole('button', { name: /^제안/ }).click();
     await page.getByRole('button', { name: '첫 제안', exact: true }).click();
     await expect(page.getByText('다시 판단해 주세요', { exact: true })).toBeVisible();
     await page.getByRole('button', { name: '후속 답변 다시 요청', exact: true }).click();

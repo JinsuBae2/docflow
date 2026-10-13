@@ -29,7 +29,7 @@
 - 단위·통합: 58개 통과, 명시 실행용 실제 계정 테스트 5개 제외.
 - 신규 Electron 테스트: 입력·취소·빈 사유·후속 답변, 실패·재시작·재시도, 중복·프로젝트 범위·3000자 제한 검증.
 - 합성 화면 `outputs/rejection-input.png`, `outputs/rejection-chat.png`를 직접 확인했다.
-- 신규 UI 테스트 최초 실행에서 빈 화면으로 초기 버튼을 찾지 못한 한 번의 실패가 있었으며, 코드 변경 없는 단독 재실행은 통과했다. 최종 전체 실행 결과는 아래에 기록한다.
+- 신규 UI 테스트에서 초기 제안 탭을 찾지 못하는 경합이 있었다. PR #13의 macOS CI에서 재현해 진단했으며, 제안 수가 붙으면 접근성 이름이 ‘제안 2’로 바뀌는데 테스트가 정확히 ‘제안’만 찾던 것이 원인이었다. 문서 로드를 기다리고 탭 영역 안에서 개수를 허용하는 선택자로 수정했다.
 
 ## 제한
 
@@ -52,6 +52,18 @@
 
 - 앱: `dist/Docflow-darwin-arm64/Docflow.app`
 - DMG: `dist/make/Docflow-0.1.0-arm64.dmg`
-- SHA-256: `85adcdb4ff64a62b014278b760296d355a057c7b4852437eca3f61b935a83c17`
+- SHA-256: `1e81c9fe8fb3697eae9dc2c2a8ca30334c98bc5955c63d98330059fb4ad604fd`
 - 체크섬 파일: `dist/make/Docflow-0.1.0-arm64.dmg.sha256`
 - 신규 UI 체크포인트는 `feat/8-rejection-followup`에 보존했다. 기존 #2·#6·#7 구현과 원래 미추적 테스트는 유지했다.
+
+## 변경 파일
+
+- 서비스·저장·맥락: `src/main/project/feedback.ts`, `src/main/project/store.ts`, `src/main/project/context.ts`
+- IPC·공통 계약: `src/main/ipc.ts`, `src/preload/index.ts`, `src/shared/contracts.ts`
+- 화면: `src/renderer/App.tsx`, `src/renderer/features/proposals/ProposalList.tsx`
+- 테스트: `tests/unit/feedback.test.ts`, `tests/e2e/rejection.spec.ts`, `tests/e2e/relationships.spec.ts`, `tests/e2e/workspace.spec.ts`, `tests/fixtures/fake-codex.cjs`
+- 패키징·안내: `forge.config.cjs`, `README.md`, 이 검증 기록
+
+최종 패키지 내용 검사에서 개발용 `.superpowers`와 `test-results`가 포함된 기존 패키징 설정을 발견했다. `.superpowers`, `test-results`, `playwright-report`를 패키징 제외에 추가하고 재패키징한 아카이브에서 개발 기록·테스트 산출물이 없는 것을 확인했다. 앱 런타임 코드 변경 없이 동일 빌드로 패키지를 다시 만들었다. 재시도 API의 완료된 피드백 무처리 결과(`null`)도 공통 타입에 반영하고 타입 검사를 통과했다.
+
+PR #13 최초 CI: Windows 통과, macOS는 신규 거절 테스트 2개의 정확한 탭 이름 선택자 때문에 실패했다. 탭 범위를 지정하고 개수를 허용하는 선택자로 수정한 뒤 신규 거절 E2E 2개가 통과했다. 제품 동작 변경은 없으며 최신 커밋으로 양쪽 OS CI를 다시 확인한다.
