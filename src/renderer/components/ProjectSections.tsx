@@ -8,7 +8,7 @@ export function ProjectSections({ entries, activeRoot, disabled, children, onSel
     let active = true;
     for (const entry of entries) {
       const folded = collapsed[entry.id] ?? entry.collapsed ?? entry.root !== activeRoot;
-      if (!folded && !entry.error && entry.root !== activeRoot && !documents[entry.id]) {
+      if (!folded && !entry.error && entry.root !== activeRoot) {
         void window.workspace.projectDocuments(entry.id).then(docs => { if (active) setDocuments(old => ({ ...old, [entry.id]: docs })); }).catch(e => { if (active) onError(e.message); });
       }
     }

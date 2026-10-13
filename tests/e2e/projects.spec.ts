@@ -19,10 +19,16 @@ test('switches project sections and restores unsaved Markdown and chat input aft
   try {
     let page = await app.firstWindow();
     await expect(page.getByRole('button', { name: '프로젝트 전환: Beta', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '프로젝트 펼치기: Beta', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Beta', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '프로젝트 전환: Beta', exact: true }).click();
+    await expect(page.getByRole('heading', { name: 'Beta', exact: true })).toBeVisible();
+    await page.evaluate(() => window.workspace.createDocument('Beta 새 문서', 'note'));
+    await page.getByRole('button', { name: '프로젝트 전환: Alpha', exact: true }).click();
+    await expect(page.locator('.inactive-project-docs').getByRole('button', { name: 'Beta 새 문서', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Markdown 편집', exact: true }).click();
     await page.getByRole('textbox', { name: 'Markdown 본문' }).fill('# Alpha 초안\n저장하지 않은 작업');
     await page.getByRole('textbox', { name: 'AI에게 요청' }).fill('Alpha 대화 입력');
-    await page.getByRole('button', { name: '프로젝트 펼치기: Beta', exact: true }).click();
     await page.getByRole('button', { name: 'Beta', exact: true }).click();
     await expect(page.getByRole('heading', { name: 'Beta', exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'AI에게 요청' })).toHaveValue('');
