@@ -77,12 +77,13 @@ export function Tooltip() {
       setTip({ text, x: Math.max(12, Math.min(rect.left + rect.width / 2 - width / 2, innerWidth - width - 12)), y: rect.bottom + 8, above: rect.bottom > innerHeight - 120 });
     };
     const leave = (event: Event) => { const related = (event as MouseEvent).relatedTarget; if (target && (!(related instanceof Node) || !target.contains(related))) hide(); };
+    const scroll = (event: Event) => { if (target && (event.target === document || (event.target instanceof Node && event.target.contains(target)))) hide(); };
     const escape = (event: KeyboardEvent) => { if (event.key === 'Escape' && target) { event.stopImmediatePropagation(); hide(); } };
     document.addEventListener('mouseover', show); document.addEventListener('focusin', show);
     document.addEventListener('mouseout', leave); document.addEventListener('focusout', hide);
     document.addEventListener('keydown', escape, true); document.addEventListener('pointerdown', hide);
-    window.addEventListener('resize', hide); document.addEventListener('scroll', hide, true);
-    return () => { hide(); document.removeEventListener('mouseover', show); document.removeEventListener('focusin', show); document.removeEventListener('mouseout', leave); document.removeEventListener('focusout', hide); document.removeEventListener('keydown', escape, true); document.removeEventListener('pointerdown', hide); window.removeEventListener('resize', hide); document.removeEventListener('scroll', hide, true); };
+    window.addEventListener('resize', hide); document.addEventListener('scroll', scroll, true);
+    return () => { hide(); document.removeEventListener('mouseover', show); document.removeEventListener('focusin', show); document.removeEventListener('mouseout', leave); document.removeEventListener('focusout', hide); document.removeEventListener('keydown', escape, true); document.removeEventListener('pointerdown', hide); window.removeEventListener('resize', hide); document.removeEventListener('scroll', scroll, true); };
   }, []);
   return tip ? createPortal(<div id="docflow-tooltip" role="tooltip" className="tooltip" style={{ left: tip.x, top: tip.above ? undefined : tip.y, bottom: tip.above ? innerHeight - tip.y + 44 : undefined }}>{tip.text}</div>, document.body) : null;
 }

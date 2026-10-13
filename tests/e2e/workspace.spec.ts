@@ -167,6 +167,8 @@ test('onboards, previews local imports without losing drafts, saves the CLI mode
       await test.info().attach('tooltip-screen', { body: await page.screenshot(), contentType: 'image/png' });
       throw error;
     }
+    await page.evaluate(() => document.querySelector('.document-scroll')!.dispatchEvent(new Event('scroll')));
+    await expect(page.getByRole('tooltip')).toContainText('모델');
     await page.keyboard.press('Escape');
     await expect(page.getByRole('tooltip')).toBeHidden();
     await help.focus();
