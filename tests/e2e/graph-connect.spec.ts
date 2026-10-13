@@ -75,6 +75,38 @@ test('connects documents by dragging, blocks invalid targets, edits and keeps AI
       pendingIds,
     );
 
+    // The overview → flow line skips the PRD card, so it must go around every card and stay clickable.
+    const skipEdge = page.locator(`.react-flow__edge[data-id="${added.id}"]`);
+    const skipLabel = skipEdge.locator('.react-flow__edge-textwrapper');
+    await expect(skipLabel).toBeVisible();
+    const overlaps = await page.evaluate((id) => {
+      const cards = [...document.querySelectorAll('.react-flow__node')].map((n) =>
+        n.getBoundingClientRect(),
+      );
+      const inside = (x: number, y: number) =>
+        cards.some((c) => x > c.left && x < c.right && y > c.top && y < c.bottom);
+      const edge = document.querySelector(`.react-flow__edge[data-id="${id}"]`)!;
+      const path = edge.querySelector<SVGPathElement>('path.react-flow__edge-path')!;
+      const matrix = path.getScreenCTM()!;
+      const length = path.getTotalLength();
+      let line = 0;
+      // Skip the ends, which sit on the cards' handles.
+      for (let at = 8; at <= length - 8; at += 4) {
+        const p = path.getPointAtLength(at).matrixTransform(matrix);
+        if (inside(p.x, p.y)) line++;
+      }
+      const l = edge.querySelector('.react-flow__edge-textwrapper')!.getBoundingClientRect();
+      const label = cards.some(
+        (c) => l.left < c.right && l.right > c.left && l.top < c.bottom && l.bottom > c.top,
+      );
+      return { line, label };
+    }, added.id);
+    expect(overlaps).toEqual({ line: 0, label: false });
+    await skipLabel.click();
+    await expect(page.locator(`[data-relation-id="${added.id}"]`)).toHaveClass(/selected/);
+    await expect(skipEdge).toHaveClass(/selected/);
+    await expect(page.getByRole('heading', { name: '문서 관계 지도' })).toBeVisible();
+
     // The same link again is rejected by the main process.
     await drag(page, '프로젝트 개요', '사용자 흐름');
     await dialog.getByRole('combobox', { name: '관계', exact: true }).fill('드래그 연결');

@@ -27,3 +27,40 @@ export function layoutDocuments(
     ),
   );
 }
+
+export const nodeWidth = 230;
+
+/**
+ * Picks a vertical lane right of the cards for each relation whose plain line would run behind
+ * another card: one in a row it skips, or one between the two cards in a shared row.
+ * Lanes stack outward so detours do not overlap.
+ */
+export function detourLanes(
+  positions: Record<string, { x: number; y: number }>,
+  edges: Array<{ id: string; from: string; to: string }>,
+): Record<string, number> {
+  const lanes: Record<string, number> = {};
+  let used = 0;
+  for (const edge of edges) {
+    const from = positions[edge.from];
+    const to = positions[edge.to];
+    if (!from || !to || edge.from === edge.to) continue;
+    const top = Math.min(from.y, to.y);
+    const bottom = Math.max(from.y, to.y);
+    const left = Math.min(from.x, to.x);
+    const right = Math.max(from.x, to.x);
+    const blocked = Object.entries(positions).some(([id, p]) => {
+      if (id === edge.from || id === edge.to) return false;
+      if (top === bottom) return p.y === top && p.x > left && p.x < right;
+      return p.y > top && p.y < bottom && p.x < right + nodeWidth && p.x + nodeWidth > left;
+    });
+    if (!blocked) continue;
+    const edgeOfCards = Math.max(
+      ...Object.values(positions)
+        .filter((p) => p.y >= top && p.y <= bottom)
+        .map((p) => p.x + nodeWidth),
+    );
+    lanes[edge.id] = edgeOfCards + 70 + used++ * 36;
+  }
+  return lanes;
+}

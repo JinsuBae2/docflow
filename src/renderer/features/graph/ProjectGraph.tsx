@@ -9,7 +9,7 @@ import {
   BaseEdge,
   type EdgeProps,
 } from '@xyflow/react';
-import { layoutDocuments } from './layout';
+import { detourLanes, layoutDocuments } from './layout';
 import '@xyflow/react/dist/style.css';
 import { ArrowUpRight, Link2, Unlink, Pencil, Sparkles } from 'lucide-react';
 import type { Relation, Workspace } from '../../../shared/contracts';
@@ -103,7 +103,70 @@ function ProposedEdge({
     </>
   );
 }
-const edgeTypes = { proposal: ProposedEdge };
+// Orthogonal path with rounded corners through the given points.
+function roundedPath(points: Array<[number, number]>, radius = 8) {
+  return points
+    .map(([x, y], i) => {
+      if (i === 0) return `M ${x} ${y}`;
+      const next = points[i + 1];
+      if (!next) return `L ${x} ${y}`;
+      const [px, py] = points[i - 1];
+      const r = Math.min(
+        radius,
+        Math.hypot(x - px, y - py) / 2,
+        Math.hypot(next[0] - x, next[1] - y) / 2,
+      );
+      const inX = x - Math.sign(x - px) * r;
+      const inY = y - Math.sign(y - py) * r;
+      const outX = x + Math.sign(next[0] - x) * r;
+      const outY = y + Math.sign(next[1] - y) * r;
+      return `L ${inX} ${inY} Q ${x} ${y} ${outX} ${outY}`;
+    })
+    .join(' ');
+}
+// A relation that would run behind another card goes around the cards through a side lane.
+function DetourEdge({
+  id,
+  sourceX,
+  sourceY,
+  targetX,
+  targetY,
+  data,
+  label,
+  labelStyle,
+  labelBgStyle,
+  labelBgPadding,
+  markerEnd,
+  style,
+}: EdgeProps) {
+  const lane = Number(data?.lane);
+  const gap = 24;
+  const path = roundedPath([
+    [sourceX, sourceY],
+    [sourceX, sourceY + gap],
+    [lane, sourceY + gap],
+    [lane, targetY - gap],
+    [targetX, targetY - gap],
+    [targetX, targetY],
+  ]);
+  // Keep wide labels clear of the cards on the lane's left.
+  const half = String(label || '').length * 7 + 10;
+  return (
+    <BaseEdge
+      id={id}
+      path={path}
+      markerEnd={markerEnd}
+      style={style}
+      label={label}
+      labelX={lane + Math.max(0, half - 56)}
+      labelY={(sourceY + targetY) / 2 + Number(data?.labelShift || 0)}
+      labelStyle={labelStyle}
+      labelBgStyle={labelBgStyle}
+      labelBgPadding={labelBgPadding}
+    />
+  );
+}
+const edgeTypes = { proposal: ProposedEdge, detour: DetourEdge };
 export function ProjectGraph({
   workspace,
   onSelect,
@@ -134,16 +197,18 @@ export function ProjectGraph({
   }, [selected]);
   const owner = (id: string) =>
     workspace.documents.find((d) => d.id === id || d.sections.some((s) => s.id === id));
-  const nodes = useMemo(() => {
+  const { nodes, lanes } = useMemo(() => {
+    const links = workspace.relations.flatMap((r) => {
+      const from = owner(r.fromId);
+      const to = owner(r.toId);
+      return from && to ? [{ id: r.id, from: from.id, to: to.id }] : [];
+    });
     const positions = layoutDocuments(
       workspace.documents.map((d) => d.id),
-      workspace.relations.flatMap((r) => {
-        const from = owner(r.fromId);
-        const to = owner(r.toId);
-        return from && to ? [{ from: from.id, to: to.id }] : [];
-      }),
+      links,
     );
-    return workspace.documents.map((doc) => ({
+    const lanes = detourLanes(positions, links);
+    const nodes = workspace.documents.map((doc) => ({
       id: doc.id,
       type: 'document',
       position: positions[doc.id],
@@ -151,6 +216,7 @@ export function ProjectGraph({
       className: 'doc-node',
       ariaLabel: `${labels[doc.type]}: ${doc.title}`,
     }));
+    return { nodes, lanes };
   }, [workspace.documents, workspace.relations]);
   const edges = workspace.relations.flatMap((r) => {
     const from = owner(r.fromId);
@@ -162,7 +228,8 @@ export function ProjectGraph({
             id: r.id,
             source: from.id,
             target: to.id,
-            type: 'smoothstep',
+            type: r.id in lanes ? 'detour' : 'smoothstep',
+            data: { lane: lanes[r.id], labelShift: (Object.keys(lanes).indexOf(r.id) % 2) * 32 },
             selected: r.id === selected,
             className: 'relation-edge origin-' + (r.origin || 'stored'),
             ariaLabel: `${origin.label}: ${from.title} → ${to.title} (${r.type})`,
