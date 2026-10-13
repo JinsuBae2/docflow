@@ -9,6 +9,51 @@ export const revisionOf = (text: string) => createHash('sha256').update(text, 'u
 function plain(node: any): string {
   return node.value || (node.children || []).map(plain).join('');
 }
+export function parseLinkedDocument(
+  input: string,
+  previous: Pick<Document, 'id' | 'type' | 'relativePath'> & Partial<Document>,
+): Document {
+  const headings = parser.parse(input).children.filter((node) => node.type === 'heading') as any[];
+  const occurrences = new Map<string, number>();
+  const parents: Section[] = [];
+  const sections: Section[] = headings.map((heading, order) => {
+    const title = plain(heading);
+    const key = `${heading.depth}:${title}`;
+    const occurrence = occurrences.get(key) || 0;
+    occurrences.set(key, occurrence + 1);
+    while (parents.length && parents.at(-1)!.level >= heading.depth) parents.pop();
+    const section: Section = {
+      id: revisionOf(`${previous.id}:${key}:${occurrence}`),
+      documentId: previous.id,
+      parentId: parents.at(-1)?.id || null,
+      title,
+      level: heading.depth,
+      order,
+      line: heading.position.start.line,
+      content: input
+        .slice(
+          heading.position.start.offset,
+          headings[order + 1]?.position.start.offset ?? input.length,
+        )
+        .trim(),
+    };
+    parents.push(section);
+    return section;
+  });
+  return {
+    id: previous.id,
+    type: previous.type,
+    relativePath: previous.relativePath,
+    title: sections[0]?.title || previous.title || '제목 없음',
+    markdown: input,
+    revision: revisionOf(input),
+    sections,
+    source: 'linked',
+    needsReconnect: !!previous.sections?.some(
+      (old) => !sections.some((section) => section.id === old.id),
+    ),
+  };
+}
 export function parseDocument(input: string, previous?: Document, fresh = false): Document {
   let markdown = input.replace(/\r\n/g, '\n');
   let tree = parser.parse(markdown);

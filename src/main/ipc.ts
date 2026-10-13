@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, lstatSync } from 'node:fs';
 import { join, basename } from 'node:path';
+import { projectRelativePath } from './project/files';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { ProjectStore } from './project/store';
@@ -71,6 +72,11 @@ const schemas: Record<string, z.ZodType> = {
   discardDraft: z.tuple([id, z.string().max(4000)]),
   current: z.tuple([]),
   openProject: z.tuple([]),
+  openDroppedProject: z.tuple([z.array(z.string().min(1).max(4000)).max(30)]),
+  previewProjectDocuments: z.tuple([]),
+  previewDocumentPaths: z.tuple([z.enum(['files', 'folder'])]),
+  confirmDocumentRegistration: z.tuple([id, z.array(z.string().min(1).max(4000)).min(1).max(30)]),
+  cancelDocumentRegistration: z.tuple([id]),
   createProject: z.tuple([]),
   openExample: z.tuple([]),
   exportDocuments: z.tuple([]),
@@ -131,6 +137,13 @@ export function registerWorkspace(window: BrowserWindow) {
   const lastLimits: Partial<Record<AiProviderId, UsageLimits>> = {};
   const saveSettings = (patch: object) => registry.patch(patch);
   let staged: { id: string; root: string; files: ReturnType<typeof prepareImports> } | undefined;
+  let registration:
+    (ReturnType<ProjectStore['discoverDocuments']> & { id: string; root: string }) | undefined;
+  const stageRegistration = (paths?: string[]) => {
+    const current = requireStore();
+    registration = { ...current.discoverDocuments(paths), id: randomUUID(), root: current.root };
+    return registration;
+  };
   const stage = (files: ImportInput[]) => {
     const s = requireStore();
     staged = { id: randomUUID(), root: s.root, files: prepareImports(files) };
@@ -155,6 +168,7 @@ export function registerWorkspace(window: BrowserWindow) {
     store?.close();
     store = next;
     staged = undefined;
+    registration = undefined;
     const ws = store.workspace();
     registry.register(ws.root, ws.project.name);
     return ws;
@@ -211,6 +225,7 @@ export function registerWorkspace(window: BrowserWindow) {
           store.close();
           store = undefined;
           staged = undefined;
+          registration = undefined;
           const next = registry.list().find((entry) => !entry.error);
           if (next) return switchProject(next.root);
         }
@@ -227,6 +242,48 @@ export function registerWorkspace(window: BrowserWindow) {
         return;
       case 'current':
         return store?.workspace() || null;
+      case 'previewProjectDocuments':
+        return stageRegistration();
+      case 'previewDocumentPaths': {
+        const current = requireStore();
+        const result = await dialog.showOpenDialog(window, {
+          title: '프로젝트 내부 원본 문서 선택',
+          defaultPath: current.root,
+          properties: args[0] === 'folder' ? ['openDirectory'] : ['openFile', 'multiSelections'],
+          ...(args[0] === 'files'
+            ? { filters: [{ name: 'Markdown', extensions: ['md', 'markdown'] }] }
+            : {}),
+        });
+        if (store !== current) throw new Error('프로젝트가 변경되었습니다. 다시 선택해 주세요.');
+        return result.canceled
+          ? null
+          : stageRegistration(
+              result.filePaths.map((path) => projectRelativePath(current.root, path)),
+            );
+      }
+      case 'cancelDocumentRegistration':
+        if (registration?.id === args[0]) registration = undefined;
+        return;
+      case 'confirmDocumentRegistration': {
+        const current = requireStore();
+        if (!registration || registration.id !== args[0] || registration.root !== current.root)
+          throw new Error('문서 등록 목록이 만료되었습니다. 다시 탐색해 주세요.');
+        const files = (args[1] as string[]).map((path) => {
+          const file = registration!.files.find((file) => file.path === path && !file.reason);
+          if (!file) throw new Error('미리보기에서 등록 가능한 문서를 선택해 주세요.');
+          return file;
+        });
+        current.linkDocuments(files);
+        registration = undefined;
+        return current.workspace();
+      }
+      case 'openDroppedProject': {
+        const paths = args[0] as string[];
+        if (paths.length !== 1 || !lstatSync(paths[0]).isDirectory()) return null;
+        if (lstatSync(paths[0]).isSymbolicLink())
+          throw new Error('프로젝트 원본 폴더를 선택해 주세요.');
+        return switchProject(paths[0]);
+      }
       case 'usageSummary':
         return requireStore().usageSummary();
       case 'usageLimits': {

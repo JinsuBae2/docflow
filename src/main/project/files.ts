@@ -1,5 +1,24 @@
 import { lstatSync, realpathSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
-import { resolve, relative, isAbsolute, sep } from 'node:path';
+import { resolve, relative, isAbsolute, sep, dirname } from 'node:path';
+export function projectRelativePath(root: string, selected: string): string {
+  if (!isAbsolute(selected)) throw new Error('선택한 원본 파일 경로를 확인해 주세요.');
+  const canonicalRoot = realpathSync(root);
+  let ancestor = dirname(selected);
+  // Normalize aliases above the selected project; retain internal segments for safePath's symlink checks.
+  for (;;) {
+    if (realpathSync(ancestor) === canonicalRoot) {
+      const path = relative(ancestor, selected);
+      safePath(canonicalRoot, path);
+      return path.replace(/\\/g, '/');
+    }
+    const parent = dirname(ancestor);
+    if (parent === ancestor) break;
+    ancestor = parent;
+  }
+  // Selecting the project root itself is also a valid manual folder selection.
+  if (realpathSync(selected) === canonicalRoot) return '.';
+  throw new Error('프로젝트 내부 파일이나 폴더를 선택해 주세요.');
+}
 export function safePath(root: string, path: string): string {
   if (!path || isAbsolute(path)) throw new Error('프로젝트 내부 상대 경로만 허용됩니다.');
   const canonicalRoot = realpathSync(root);

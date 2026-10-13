@@ -75,6 +75,11 @@ export function DocumentView({
   };
   return (
     <div className="document-surface">
+      {doc.source === 'linked' && (
+        <p className="linked-document-path" title={doc.relativePath}>
+          원본 연결 · 저장 대상: {doc.relativePath}
+        </p>
+      )}
       <div className="document-actions">
         <span className="document-state">
           <Check size={13} />
@@ -103,7 +108,7 @@ export function DocumentView({
                 onClick={() => void save()}
               >
                 <Save size={14} />
-                저장
+                {doc.source === 'linked' ? '원본에 저장' : '저장'}
               </button>
             </>
           )}

@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
-import { basename } from 'node:path';
+import { basename, relative } from 'node:path';
 import type {
   Document,
   DocumentType,
@@ -19,7 +19,8 @@ import type {
   AiProviderId,
   RejectionFeedback,
 } from '../../shared/contracts';
-import { parseDocument, revisionOf } from './markdown';
+import { parseDocument, parseLinkedDocument, revisionOf } from './markdown';
+import { discoverDocuments, checkDocumentPath } from './discovery';
 import { ensureProjectDirectory, safePath, readDocumentFile } from './files';
 import { commitFile, recoverPendingOperations, type RecoveryOperation } from './recovery';
 type DocumentRecord = Omit<Document, 'markdown' | 'sections'> & { sections: Array<{ id: string }> };
@@ -110,7 +111,10 @@ export class ProjectStore {
     return this.all<DocumentRecord>('document').flatMap((record) => {
       try {
         const raw = readDocumentFile(this.root, record.relativePath);
-        const parsed = parseDocument(raw, record as Document);
+        const parsed =
+          record.source === 'linked'
+            ? parseLinkedDocument(raw, record as Document)
+            : parseDocument(raw, record as Document);
         return [
           {
             ...parsed,
@@ -133,6 +137,48 @@ export class ProjectStore {
     const doc = this.listDocuments().find((d) => d.id === id);
     if (!doc) throw new Error('문서를 찾을 수 없습니다.');
     return doc;
+  }
+  discoverDocuments(paths?: string[]) {
+    return discoverDocuments(
+      this.root,
+      new Set(this.all<DocumentRecord>('document').map((record) => record.relativePath)),
+      paths,
+    );
+  }
+  linkDocuments(files: Array<{ path: string; revision?: string }>) {
+    if (!files.length || files.length > 30) throw new Error('한 번에 1~30개 문서를 선택해 주세요.');
+    const paths = new Set(
+      this.all<DocumentRecord>('document').map((record) =>
+        process.platform === 'win32' ? record.relativePath.toLowerCase() : record.relativePath,
+      ),
+    );
+    let bytes = 0;
+    const validated = files.map((file) => {
+      checkDocumentPath(file.path);
+      if (!/\.(md|markdown)$/i.test(file.path))
+        throw new Error('Markdown 파일만 등록할 수 있습니다.');
+      const path = relative(this.root, safePath(this.root, file.path)).replace(/\\/g, '/');
+      const key = process.platform === 'win32' ? path.toLowerCase() : path;
+      if (paths.has(key)) throw new Error('이미 등록된 문서입니다.');
+      paths.add(key);
+      const text = readDocumentFile(this.root, path);
+      bytes += Buffer.byteLength(text, 'utf8');
+      if (bytes > 10_000_000) throw new Error('선택한 문서의 전체 크기는 10MB 이하여야 합니다.');
+      if (text.includes('\0')) throw new Error('텍스트 Markdown 파일만 지원합니다.');
+      if (revisionOf(text) !== file.revision)
+        throw new Error('선택한 파일이 외부에서 변경되었습니다. 다시 탐색해 주세요.');
+      return { path, text };
+    });
+    const docs = validated.map(({ path, text }) =>
+      parseLinkedDocument(text, {
+        id: randomUUID(),
+        type: 'note',
+        relativePath: path,
+        title: basename(path),
+      }),
+    );
+    this.transaction(() => docs.forEach((doc) => this.put('document', this.record(doc))));
+    return docs;
   }
   async createDocument(
     title: string,
@@ -169,7 +215,10 @@ export class ProjectStore {
     const previous = this.document(id);
     if (previous.revision !== expectedRevision)
       throw new Error('문서가 외부에서 변경되었습니다. 최신 내용을 다시 확인해 주세요.');
-    const doc = parseDocument(markdown, previous);
+    const doc =
+      previous.source === 'linked'
+        ? parseLinkedDocument(markdown, previous)
+        : parseDocument(markdown, previous);
     this.checkSize(doc);
     commitFile(
       this.root,
