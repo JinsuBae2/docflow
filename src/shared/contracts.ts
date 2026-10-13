@@ -277,9 +277,32 @@ export interface Workspace {
   documentIssues: string[];
   documentLinks: DocumentLink[];
   documentAnchors: DocumentAnchor[];
+  flows: ProjectFlow[];
+  flowIssues: string[];
   drafts?: EditorDraft[];
   session?: ProjectSession;
   feedbacks?: RejectionFeedback[];
+}
+export interface ProjectFlow {
+  id: Id;
+  documentId: Id;
+  documentTitle: string;
+  title: string;
+  sectionId: Id;
+  sectionTitle: string;
+  path: string;
+  line: number;
+  referenceLine?: number;
+  sourceKind: 'markdown' | 'definition';
+  sourceRevision: Revision;
+  language: string;
+  kind: 'flowchart' | 'sequence' | 'state' | 'unsupported';
+  code: string;
+  editable: boolean;
+  editReason?: string;
+  safetyError?: string;
+  contentStart?: number;
+  contentEnd?: number;
 }
 export interface ContextInput {
   instruction: string;
@@ -339,6 +362,7 @@ export interface WorkspaceApi {
   saveClaudeKey(key: string): Promise<void>;
   createDocument(title: string, type: DocumentType): Promise<Workspace>;
   saveDocument(id: Id, markdown: string, expectedRevision: Revision): Promise<Workspace>;
+  saveFlow(id: Id, sourceRevision: Revision, code: string, root: string): Promise<Workspace>;
   exportDocuments(): Promise<boolean>;
   saveProject(name: string, goal: string, constraints: string): Promise<Workspace>;
   connectDocuments(fromId: Id, toId: Id, type: string): Promise<Workspace>;

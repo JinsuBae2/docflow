@@ -22,6 +22,8 @@ import type {
 import { parseDocument, parseLinkedDocument, revisionOf } from './markdown';
 import { discoverDocuments, checkDocumentPath } from './discovery';
 import { indexDocumentLinks } from './links';
+import { indexProjectFlows } from './flows';
+import { parseSimpleFlow } from '../../shared/flows';
 import { ensureProjectDirectory, safePath, readDocumentFile, fileIdentity } from './files';
 import { commitFile, recoverPendingOperations, type RecoveryOperation } from './recovery';
 type DocumentRecord = Omit<Document, 'markdown' | 'sections'> & { sections: Array<{ id: string }> };
@@ -401,6 +403,7 @@ export class ProjectStore {
   workspace(): Workspace {
     const documents = this.listDocuments();
     const indexed = indexDocumentLinks(this.root, documents);
+    const flowIndex = indexProjectFlows(this.root, documents);
     const proposals = this.all<Proposal>('proposal');
     const staleDiagramIds = proposals
       .filter((p) => p.kind === 'diagram' && p.status === 'accepted' && p.resultDocumentId)
@@ -420,6 +423,8 @@ export class ProjectStore {
       relations: [...this.all<Relation>('relation'), ...indexed.relations],
       documentLinks: indexed.links,
       documentAnchors: indexed.anchors,
+      flows: flowIndex.flows,
+      flowIssues: flowIndex.issues,
       decisions: this.all<Decision>('decision'),
       proposals,
       messages: this.all<Message>('message'),
@@ -429,6 +434,46 @@ export class ProjectStore {
       session: this.get<ProjectSession>('session', 'current'),
       feedbacks: this.all<RejectionFeedback>('feedback'),
     };
+  }
+  async saveFlow(id: string, sourceRevision: string, code: string): Promise<Workspace> {
+    const flow = this.workspace().flows.find((flow) => flow.id === id);
+    if (!flow || flow.sourceRevision !== sourceRevision)
+      throw new Error('흐름 원문이 변경되었습니다. 최신 내용을 확인해 주세요.');
+    if (
+      !flow.editable ||
+      flow.contentStart === undefined ||
+      flow.contentEnd === undefined ||
+      !parseSimpleFlow(code)
+    )
+      throw new Error('기본 흐름도의 편집 가능한 부분집합만 저장할 수 있습니다.');
+    if (this.all<EditorDraft>('draft').some((draft) => draft.documentId === flow.documentId))
+      throw new Error('원본 문서의 초안을 저장하거나 취소한 뒤 흐름을 편집해 주세요.');
+    const doc = this.document(flow.documentId);
+    if (doc.revision !== sourceRevision)
+      throw new Error('흐름 원문이 변경되었습니다. 최신 내용을 확인해 주세요.');
+    const newline = doc.markdown.includes('\r\n') ? '\r\n' : '\n';
+    const body = code.trimEnd().replace(/\r?\n/g, newline) + newline;
+    const markdown =
+      doc.markdown.slice(0, flow.contentStart) + body + doc.markdown.slice(flow.contentEnd);
+    const parsed =
+      doc.source === 'linked' ? parseLinkedDocument(markdown, doc) : parseDocument(markdown, doc);
+    if (parsed.markdown.replace(/\r\n/g, '\n') !== markdown.replace(/\r\n/g, '\n'))
+      throw new Error(
+        '문서 식별자 구조가 변경되었습니다. 문서 편집에서 원본을 먼저 확인해 주세요.',
+      );
+    const saved = { ...parsed, markdown, revision: revisionOf(markdown) };
+    this.checkSize(saved);
+    commitFile(
+      this.root,
+      {
+        path: saved.relativePath,
+        before: doc.markdown,
+        after: markdown,
+        record: this.record(saved),
+      },
+      (op) => this.persistOperation(op),
+    );
+    return this.workspace();
   }
   resolveDocumentLink(documentId: string, linkId: string, revision: string) {
     const workspace = this.workspace();

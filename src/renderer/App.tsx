@@ -85,6 +85,8 @@ export default function App() {
   const [selectedId, setSelectedId] = useState('');
   const [sectionId, setSectionId] = useState('');
   const [view, setView] = useState<'document' | 'graph' | 'diagram'>('document');
+  const [flowEditing, setFlowEditing] = useState(false);
+  const [flowSourceLine, setFlowSourceLine] = useState(0);
   const [panelTab, setPanelTab] = useState<'chat' | 'proposals'>('chat');
   const [sidebar, setSidebar] = useState(true);
   const [assistant, setAssistant] = useState(true);
@@ -155,6 +157,7 @@ export default function App() {
     selected?: string,
     discover = false,
   ) => {
+    if (flowEditing) throw new Error('흐름 편집을 저장하거나 취소한 뒤 프로젝트를 바꿔 주세요.');
     await writes.current;
     const next = await open();
     if (next) {
@@ -216,10 +219,11 @@ export default function App() {
   const select = (id: string, next = workspace) => {
     const target = next?.documents.find((d) => d.id === id || d.sections.some((s) => s.id === id));
     if (!target) return;
-    if (target.id !== doc?.id && !mayLeave()) return;
+    if ((target.id !== doc?.id || flowEditing) && !mayLeave()) return;
     setSelectedId(target.id);
     setSectionId(id === target.id ? '' : id);
     setView('document');
+    setFlowSourceLine(0);
     if (target.id !== doc?.id) setDirty(false);
     if (id !== target.id)
       setTimeout(
@@ -474,6 +478,7 @@ export default function App() {
       importing.current ||
       importPreview ||
       registration ||
+      flowEditing ||
       externalLink ||
       connectionSetup ||
       modal !== 'none'
@@ -778,7 +783,7 @@ export default function App() {
             <ProjectSections
               entries={projects}
               activeRoot={workspace?.root}
-              disabled={busy || running}
+              disabled={busy || running || flowEditing}
               onError={setError}
               onSelect={(entry, id) =>
                 void act(() => changeProject(() => window.workspace.activateProject(entry.id), id))
@@ -991,9 +996,53 @@ export default function App() {
             />
           ) : view === 'diagram' ? (
             <Diagram
-              documents={docs}
+              key={workspace.root}
+              flows={workspace.flows}
+              issues={workspace.flowIssues}
               staleIds={workspace.staleDiagramIds}
-              onSource={select}
+              onSource={(flow) => {
+                select(flow.sectionId);
+                if (flow.sourceKind === 'markdown') {
+                  setFlowSourceLine(flow.line);
+                  setTimeout(
+                    () =>
+                      document
+                        .getElementById(`flow-source-${flow.documentId}-${flow.line}`)
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'center' }),
+                    100,
+                  );
+                }
+              }}
+              onDirty={setDirty}
+              onEditingChange={setFlowEditing}
+              onRefresh={async () => update(await window.workspace.current())}
+              onSave={async (flow, code) => {
+                try {
+                  const next = await window.workspace.saveFlow(
+                    flow.id,
+                    flow.sourceRevision,
+                    code,
+                    workspace.root,
+                  );
+                  update(next);
+                  return (
+                    next.flows.find(
+                      (item) =>
+                        item.documentId === flow.documentId &&
+                        item.line === flow.line &&
+                        item.code.trim() === code.trim(),
+                    ) ||
+                    next.flows.find(
+                      (item) =>
+                        item.documentId === flow.documentId && item.code.trim() === code.trim(),
+                    )
+                  );
+                } catch (error) {
+                  const next = await window.workspace.current();
+                  if (next?.root === workspace.root) update(next);
+                  throw error;
+                }
+              }}
               onGenerate={() =>
                 preparePrompt(
                   '현재 프로젝트와 관련 문서의 맥락을 바탕으로 사용자 흐름도를 만들어줘. Mermaid 다이어그램을 포함한 새 flow 문서를 diagram 제안으로 작성해줘.',
@@ -1035,6 +1084,7 @@ export default function App() {
                     }
                   }}
                   onDirty={setDirty}
+                  focusedFlowLine={flowSourceLine}
                   links={workspace!.documentLinks.filter((link) => link.documentId === doc.id)}
                   onLink={followLink}
                 />
