@@ -1,6 +1,6 @@
 name: 기능 제안
 description: 해결하고 싶은 문제와 사용 상황을 알려 주세요.
-title: "[제안] "
+title: '[제안] '
 labels: [enhancement]
 body:
   - type: textarea

@@ -12,6 +12,12 @@ try {
   cpSync(app, join(staging, 'Docflow.app'), { recursive: true, verbatimSymlinks: true });
   symlinkSync('/Applications', join(staging, 'Applications'));
   mkdirSync(resolve('dist/make'), { recursive: true });
-  execFileSync('hdiutil', ['create', '-ov', '-volname', 'Docflow', '-srcfolder', staging, '-format', 'UDZO', destination], { stdio: 'inherit' });
+  execFileSync(
+    'hdiutil',
+    ['create', '-ov', '-volname', 'Docflow', '-srcfolder', staging, '-format', 'UDZO', destination],
+    { stdio: 'inherit' },
+  );
   console.log(destination);
-} finally { rmSync(staging, { recursive: true, force: true }); }
+} finally {
+  rmSync(staging, { recursive: true, force: true });
+}

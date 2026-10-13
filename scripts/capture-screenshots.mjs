@@ -7,7 +7,15 @@ const root = await mkdtemp(join(tmpdir(), 'docflow-screenshots-'));
 let app;
 try {
   await mkdir('docs/images', { recursive: true });
-  app = await electron.launch({ args: [resolve('out/main/index.js')], env: { ...process.env, ANTHROPIC_API_KEY: '', DOCFLOW_DATA_DIR: root, DOCFLOW_TEST_FIXTURE: '' } });
+  app = await electron.launch({
+    args: [resolve('out/main/index.js')],
+    env: {
+      ...process.env,
+      ANTHROPIC_API_KEY: '',
+      DOCFLOW_DATA_DIR: root,
+      DOCFLOW_TEST_FIXTURE: '',
+    },
+  });
   const page = await app.firstWindow();
   await page.getByRole('button', { name: '안내 닫기' }).click();
   await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
@@ -30,4 +38,7 @@ try {
   await expect(page.getByRole('dialog', { name: 'Claude 연결 설정' })).toBeVisible();
   await page.screenshot({ path: 'docs/images/claude-setup.png' });
   console.log('Captured sample project and disconnected Claude setup; no inference requests.');
-} finally { await app?.close(); await rm(root, { recursive: true, force: true }); }
+} finally {
+  await app?.close();
+  await rm(root, { recursive: true, force: true });
+}

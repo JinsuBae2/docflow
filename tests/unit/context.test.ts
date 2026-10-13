@@ -11,13 +11,28 @@ describe('Context selection', () => {
     try {
       const a = await store.createDocument('PRD', 'prd', '# 목표\n회원가입 없음');
       const b = await store.createDocument('기능', 'feature', '# 기능\n로컬 파일');
-      store.addRelation(a.id, b.id, '구현'); store.addDecision('회원가입 없음', [a.id]);
-      const ctx = await buildContext({ instruction: '검토', selectedIds: [a.id], excludedIds: [] }, store);
+      store.addRelation(a.id, b.id, '구현');
+      store.addDecision('회원가입 없음', [a.id]);
+      const ctx = await buildContext(
+        { instruction: '검토', selectedIds: [a.id], excludedIds: [] },
+        store,
+      );
       expect(ctx.sources.some((s: any) => s.documentId === b.id)).toBe(true);
       expect(ctx.decisions[0].text).toBe('회원가입 없음');
-      const excluded = await buildContext({ instruction: '검토', selectedIds: [a.id], excludedIds: [b.id] }, store);
+      const excluded = await buildContext(
+        { instruction: '검토', selectedIds: [a.id], excludedIds: [b.id] },
+        store,
+      );
       expect(excluded.sources.some((s: any) => s.documentId === b.id)).toBe(false);
-      await expect(buildContext({ instruction: '검토', selectedIds: [a.id], excludedIds: [], maxCharacters: 10 }, store)).rejects.toThrow(/범위/);
-    } finally { store.close(); await rm(root, { recursive: true, force: true }); }
+      await expect(
+        buildContext(
+          { instruction: '검토', selectedIds: [a.id], excludedIds: [], maxCharacters: 10 },
+          store,
+        ),
+      ).rejects.toThrow(/범위/);
+    } finally {
+      store.close();
+      await rm(root, { recursive: true, force: true });
+    }
   });
 });
