@@ -19,6 +19,7 @@ import { documentTypeSchema } from '../shared/proposal-schema';
 const str = z.string().max(2_000_000).refine(text => Buffer.byteLength(text, 'utf8') <= 2_000_000, '2MB 이하의 Markdown만 저장할 수 있습니다.'); const id = z.string().min(1).max(250);
 const contextSchema = z.object({ instruction: z.string().min(1).max(10000), selectedIds: z.array(id).max(300), excludedIds: z.array(id).max(300), maxCharacters: z.number().int().min(1000).max(60000).optional() }).strict();
 const schemas: Record<string, z.ZodType> = {
+  updateRelation: z.tuple([id, z.string().trim().min(1).max(80)]),
   listProjects: z.tuple([]), projectDocuments: z.tuple([id]), activateProject: z.tuple([id]), forgetProject: z.tuple([id]),
   setProjectCollapsed: z.tuple([id, z.boolean()]),
   saveSession: z.tuple([z.object({ selectedId: z.string().max(250), view: z.enum(['document', 'graph', 'diagram']), prompt: z.string().max(10000), collapsed: z.boolean() }).strict(), z.string().max(4000)]),
@@ -123,6 +124,7 @@ export function registerWorkspace(window: BrowserWindow) {
       case 'saveProject': { const s = requireStore(); s.updateProject(args[0], args[1], args[2]); registry.register(s.root, args[0]); return s.workspace(); }
       case 'connectDocuments': requireStore().addRelation(args[0], args[1], args[2]); return requireStore().workspace();
       case 'removeRelation': requireStore().remove('relation', args[0]); return requireStore().workspace();
+      case 'updateRelation': requireStore().updateRelation(args[0], args[1]); return requireStore().workspace();
       case 'exportDocuments': {
         const docs = requireStore().workspace().documents; const result = await dialog.showOpenDialog(window, { title: '내보낼 폴더', properties: ['openDirectory', 'createDirectory'] });
         if (result.canceled) return false;

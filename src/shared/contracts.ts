@@ -56,6 +56,7 @@ export interface WorkspaceApi {
   saveProject(name: string, goal: string, constraints: string): Promise<Workspace>;
   connectDocuments(fromId: Id, toId: Id, type: string): Promise<Workspace>;
   removeRelation(id: Id): Promise<Workspace>;
+  updateRelation(id: Id, type: string): Promise<Workspace>;
   previewContext(input: ContextInput): Promise<ContextSnapshot>;
   startRequest(input: ContextInput, replacesId?: Id): Promise<Id>;
   cancelRequest(): Promise<void>;
