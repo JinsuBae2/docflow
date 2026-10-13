@@ -1,6 +1,6 @@
 name: 버그 보고
 description: 재현 가능한 오류를 알려 주세요.
-title: "[버그] "
+title: '[버그] '
 labels: [bug]
 body:
   - type: markdown

@@ -17,7 +17,10 @@
     "make": "npm run licenses && npm run build && electron-forge make",
     "make:dmg": "node scripts/make-dmg.mjs",
     "licenses": "node scripts/generate-notices.mjs",
-    "screenshots": "node scripts/capture-screenshots.mjs"
+    "screenshots": "node scripts/capture-screenshots.mjs",
+    "lint": "eslint . --max-warnings 0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "overrides": {
     "katex": "^0.18.2"
@@ -38,9 +41,12 @@
     "zod": "^4.6.6"
   },
   "devDependencies": {
+    "@babel/core": "8.0.5",
+    "@babel/eslint-parser": "8.0.7",
     "@electron-forge/cli": "^8.0.1",
     "@electron-forge/maker-squirrel": "^8.0.1",
     "@electron-forge/maker-zip": "^8.0.1",
+    "@eslint/js": "10.0.1",
     "@playwright/test": "^1.64.0",
     "@types/diff": "^7.0.2",
     "@types/node": "^26.6.5",
@@ -49,6 +55,10 @@
     "@vitejs/plugin-react": "^5.2.0",
     "electron": "^44.7.0",
     "electron-vite": "^5.0.0",
+    "eslint": "10.12.0",
+    "eslint-config-prettier": "10.1.8",
+    "globals": "17.13.0",
+    "prettier": "3.9.10",
     "typescript": "^7.0.2",
     "vite": "^7.3.7",
     "vitest": "^5.0.4"

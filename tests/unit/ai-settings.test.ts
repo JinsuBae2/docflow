@@ -5,6 +5,9 @@ it('migrates legacy Codex settings and keeps models separate across providers', 
   expect(old.provider).toBe('codex');
   const claude = updatePreferences(old, { provider: 'claude', model: 'claude-picked' });
   expect(updatePreferences(claude, { provider: 'codex' }).model).toBe('codex-old');
-  expect(updatePreferences(updatePreferences(claude, { provider: 'codex' }), { provider: 'claude' }).model).toBe('claude-picked');
+  expect(
+    updatePreferences(updatePreferences(claude, { provider: 'codex' }), { provider: 'claude' })
+      .model,
+  ).toBe('claude-picked');
   expect(claude.onboardingDone).toBe(true);
 });

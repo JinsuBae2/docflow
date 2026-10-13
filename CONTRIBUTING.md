@@ -4,7 +4,7 @@
 
 ## 개발 환경
 
-Node.js 24, npm, Git이 필요합니다. 저장소를 fork하고 clone한 뒤 실행합니다.
+Node.js 24.11 이상(24.x), npm, Git이 필요합니다. 저장소를 fork하고 clone한 뒤 실행합니다.
 
 ```sh
 npm ci
@@ -22,6 +22,8 @@ AI 계정 없이도 예제 프로젝트와 일반 개발·테스트를 실행할
 5. 리뷰와 CI를 통과하면 squash merge합니다. 유지관리자의 자체 PR도 CI를 거칩니다.
 
 ```sh
+npm run lint
+npm run format:check
 npm run typecheck
 npm test
 npm run build
@@ -55,3 +57,11 @@ docs: 설치 안내 보완
 [AI 활용 안내](AI_USAGE.md)에 따라 AI 도움 범위와 직접 검증한 내용을 PR에 적어 주세요. 기여자는 자신이 제출할 권리를 가진 내용을 제출하며, 별도 합의가 없는 기여는 프로젝트와 같은 MIT 조건으로 제공됩니다. 외부 구성요소의 고지는 유지합니다. 별도 CLA는 요구하지 않습니다.
 
 보안 문제는 공개 이슈에 악용 방법이나 비밀정보를 게시하지 말고 [보안 정책](SECURITY.md)에 따라 비공개로 신고해 주세요. 모든 참여자는 [행동 규칙](CODE_OF_CONDUCT.md)을 따릅니다.
+
+## 코드 포맷과 린트
+
+`npm run format`으로 소스·테스트·스크립트·개발 설정을 정리한 뒤 `npm run lint`와 `npm run format:check`를 실행합니다. 들여쓰기는 2칸, 작은따옴표, 세미콜론, 줄바꿈 LF, 한 줄 기준 100자를 사용합니다. 기능 변경과 대규모 포맷 변경은 별도 PR로 나눕니다.
+
+생성된 라이선스 원문, 기존 Markdown 문서·예제, 빌드 산출물과 사용자 데이터는 포맷 대상에서 제외합니다. ESLint는 구문과 기본 오류를 검사하며, 타입·미사용 선언은 `npm run typecheck`가 검사합니다. 현재 TypeScript 7은 typescript-eslint의 지원 범위 밖이므로 Babel 구문 파서를 lint에만 사용합니다. 앱 빌드와 TypeScript 버전은 유지하며 타입 정보 기반 ESLint 규칙은 지원 도구가 준비되면 추가합니다.
+
+원본 API 오류의 인증정보를 정제하는 처리, 검증된 종료 조건을 갖춘 페이지 순회와 파일명 제어문자 제거는 근거를 적은 줄 단위 예외로 유지합니다.

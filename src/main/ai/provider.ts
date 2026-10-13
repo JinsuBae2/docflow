@@ -1,4 +1,10 @@
-import type { AiEvent, AiModel, ContextSnapshot, ProviderStatus, UsageLimits } from '../../shared/contracts';
+import type {
+  AiEvent,
+  AiModel,
+  ContextSnapshot,
+  ProviderStatus,
+  UsageLimits,
+} from '../../shared/contracts';
 export interface AiProvider {
   getStatus(): Promise<ProviderStatus>;
   listModels(): Promise<AiModel[]>;
