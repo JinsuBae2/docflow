@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { basename } from 'node:path';
-import type { Document, DocumentType, Project, Workspace, Relation, Decision, Proposal, ContextSnapshot, Message } from '../../shared/contracts';
+import type { Document, DocumentType, Project, Workspace, Relation, Decision, Proposal, ContextSnapshot, Message, EditorDraft, ProjectSession } from '../../shared/contracts';
 import { parseDocument, revisionOf } from './markdown';
 import { ensureProjectDirectory, safePath, readDocumentFile } from './files';
 import { commitFile, recoverPendingOperations, type RecoveryOperation } from './recovery';
@@ -81,6 +81,9 @@ export class ProjectStore {
     const relation = { id: randomUUID(), fromId, toId, type, confirmed: true }; this.put('relation', relation); return relation;
   }
   updateProject(name: string, goal: string, constraints: string) { const project = this.all<Project>('project')[0]; this.put('project', { ...project, name, goal, constraints }); }
+  saveDraft(draft: EditorDraft) { this.document(draft.documentId); this.put('draft', { ...draft, id: draft.documentId }); }
+  discardDraft(documentId: string) { this.remove('draft', documentId); }
+  saveSession(session: ProjectSession) { this.put('session', { ...session, id: 'current' }); }
   addDecision(text: string, sourceIds: string[], proposalId?: string): Decision {
     const decision = { id: proposalId || randomUUID(), text, sourceIds, status: 'accepted' as const };
     this.db.exec('BEGIN IMMEDIATE');
@@ -94,7 +97,7 @@ export class ProjectStore {
       const context = this.get<ContextSnapshot>('context', p.snapshotId);
       return context?.sources.some(s => p.sourceIds.includes(s.id) && documents.find(d => d.id === s.documentId)?.revision !== s.revision);
     }).map(p => p.resultDocumentId!);
-    return { root: this.root, project: this.all<Project>('project')[0], documents, relations: this.all<Relation>('relation'), decisions: this.all<Decision>('decision'), proposals, messages: this.all<Message>('message'), staleDiagramIds, documentIssues: this.documentIssues };
+    return { root: this.root, project: this.all<Project>('project')[0], documents, relations: this.all<Relation>('relation'), decisions: this.all<Decision>('decision'), proposals, messages: this.all<Message>('message'), staleDiagramIds, documentIssues: this.documentIssues, drafts: this.all<EditorDraft & { id: string }>('draft').map(({ id: _id, ...draft }) => draft), session: this.get<ProjectSession>('session', 'current') };
   }
   saveSnapshot(snapshot: ContextSnapshot) { this.put('context', snapshot); }
   close() { this.db.close(); }

@@ -4,6 +4,7 @@ import { join, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { ProjectStore } from './project/store';
+import { ProjectRegistry } from './project/registry';
 import { ProposalService } from './project/proposals';
 import { buildContext } from './project/context';
 import { exampleDocuments } from './project/examples';
@@ -18,6 +19,9 @@ import { documentTypeSchema } from '../shared/proposal-schema';
 const str = z.string().max(2_000_000).refine(text => Buffer.byteLength(text, 'utf8') <= 2_000_000, '2MB 이하의 Markdown만 저장할 수 있습니다.'); const id = z.string().min(1).max(250);
 const contextSchema = z.object({ instruction: z.string().min(1).max(10000), selectedIds: z.array(id).max(300), excludedIds: z.array(id).max(300), maxCharacters: z.number().int().min(1000).max(60000).optional() }).strict();
 const schemas: Record<string, z.ZodType> = {
+  listProjects: z.tuple([]), projectDocuments: z.tuple([id]), activateProject: z.tuple([id]), forgetProject: z.tuple([id]),
+  saveSession: z.tuple([z.object({ selectedId: z.string().max(250), view: z.enum(['document', 'graph', 'diagram']), prompt: z.string().max(10000), collapsed: z.boolean() }).strict(), z.string().max(4000)]),
+  saveDraft: z.tuple([z.object({ documentId: id, markdown: str, baseRevision: id }).strict(), z.string().max(4000)]), discardDraft: z.tuple([id, z.string().max(4000)]),
   current: z.tuple([]), openProject: z.tuple([]), createProject: z.tuple([]), openExample: z.tuple([]), exportDocuments: z.tuple([]),
   previewImport: z.tuple([]), previewDroppedDocuments: z.tuple([z.array(z.object({ name: z.string().max(500), text: z.string().max(2_000_000) }).strict()).min(1).max(30)]), confirmImport: z.tuple([id]), cancelImport: z.tuple([]),
   listModels: z.tuple([z.enum(['codex', 'claude']).optional()]), saveClaudeKey: z.tuple([z.string().max(500).refine(key => !key || /^[!-~]+$/.test(key), 'API 키 형식을 확인해 주세요.')]), preferences: z.tuple([]), savePreferences: z.tuple([z.object({ provider: z.enum(['codex', 'claude']).optional(), model: z.string().max(150).optional(), onboardingDone: z.boolean().optional() }).strict()]),
@@ -30,9 +34,10 @@ const schemas: Record<string, z.ZodType> = {
 export function registerWorkspace(window: BrowserWindow) {
   const dataRoot = process.env.DOCFLOW_DATA_DIR || app.getPath('userData'); mkdirSync(dataRoot, { recursive: true });
   const settingsFile = join(dataRoot, 'settings.json');
-  const readSettings = (): { root?: string } & Preferences => { try { const saved = JSON.parse(readFileSync(settingsFile, 'utf8')); return { root: saved.root, ...normalizePreferences(saved) }; } catch { return normalizePreferences(); } };
+  const registry = new ProjectRegistry(settingsFile);
+  const readSettings = (): { root?: string } & Preferences => { const saved = registry.read(); return { root: saved.root, ...normalizePreferences(saved) }; };
   const credentials = new CredentialStore(join(dataRoot, 'claude-key.enc'), safeStorage);
-  const saveSettings = (patch: object) => writeFileSync(settingsFile, JSON.stringify({ ...readSettings(), ...patch }), { mode: 0o600 });
+  const saveSettings = (patch: object) => registry.patch(patch);
   let staged: { id: string; root: string; files: ReturnType<typeof prepareImports> } | undefined;
   const stage = (files: ImportInput[]) => { const s = requireStore(); staged = { id: randomUUID(), root: s.root, files: prepareImports(files) }; return { id: staged.id, files: staged.files.map(({ text: _text, ...preview }) => preview) }; };
   let store: ProjectStore | undefined; let controller: AbortController | undefined; let provider: AiProvider | undefined;
@@ -43,14 +48,31 @@ export function registerWorkspace(window: BrowserWindow) {
   const switchProject = async (root: string) => {
     if (controller) throw new Error('AI 요청을 취소하거나 완료한 뒤 프로젝트를 바꿔 주세요.');
     const next = await ProjectStore.open(root); store?.close(); store = next;
-    staged = undefined; saveSettings({ root }); return store.workspace();
+    staged = undefined; const ws = store.workspace(); registry.register(ws.root, ws.project.name); return ws;
   };
   const ready = (async () => { try { if (existsSync(settingsFile)) { const { root } = JSON.parse(readFileSync(settingsFile, 'utf8')); if (typeof root === 'string' && existsSync(root)) await switchProject(root); } } catch { /* A missing last project must not prevent the app from opening. */ } })();
   const notify = (requestId: string, event: AiEvent) => { if (!window.isDestroyed()) window.webContents.send('workspace:event', { requestId, event }); };
   ipcMain.handle('workspace:call', async (event, method: string, rawArgs: unknown[]) => {
     if (event.sender.id !== window.webContents.id || !schemas[method]) throw new Error('허용되지 않은 앱 요청입니다.');
     const args = schemas[method].parse(rawArgs) as any[]; await ready;
+    if (['saveSession', 'saveDraft', 'discardDraft'].includes(method) && args[1] !== requireStore().root) throw new Error('프로젝트가 바뀌어 저장 요청을 적용하지 않았습니다.');
     switch (method) {
+      case 'listProjects': return registry.list();
+      case 'activateProject': return switchProject(registry.resolve(args[0]));
+      case 'projectDocuments': {
+        const root = registry.resolve(args[0]); const temporary = root === store?.root ? store : await ProjectStore.open(root);
+        try { return temporary!.workspace().documents.map(({ id, title, type }) => ({ id, title, type })); }
+        finally { if (temporary !== store) temporary!.close(); }
+      }
+      case 'forgetProject': {
+        if (controller) throw new Error('AI 요청이 끝난 뒤 프로젝트 목록을 변경해 주세요.');
+        const entry = registry.list().find(entry => entry.id === args[0]); if (!entry) throw new Error('등록된 프로젝트를 찾을 수 없습니다.'); const root = entry.root; registry.forget(args[0]);
+        if (root === store?.root) { store.close(); store = undefined; staged = undefined; const next = registry.list().find(entry => !entry.error); if (next) return switchProject(next.root); }
+        return store?.workspace() || null;
+      }
+      case 'saveSession': requireStore().saveSession(args[0]); return;
+      case 'saveDraft': requireStore().saveDraft(args[0]); return;
+      case 'discardDraft': requireStore().discardDraft(args[0]); return;
       case 'current': return store?.workspace() || null;
       case 'preferences': return normalizePreferences(readSettings());
       case 'saveClaudeKey': {
@@ -92,11 +114,11 @@ export function registerWorkspace(window: BrowserWindow) {
           s.addRelation(docs[0].id, docs[1].id, '구체화'); s.addRelation(docs[1].id, docs[2].id, '사용자 흐름');
           s.addDecision('회원가입 없이 로컬에서 사용한다.', [docs[0].id]);
         }
-        return requireStore().workspace();
+        const current = requireStore().workspace(); registry.register(current.root, current.project.name); return current;
       }
       case 'createDocument': await requireStore().createDocument(args[0], args[1]); return requireStore().workspace();
       case 'saveDocument': await requireStore().saveDocument(args[0], args[1], args[2]); return requireStore().workspace();
-      case 'saveProject': requireStore().updateProject(args[0], args[1], args[2]); return requireStore().workspace();
+      case 'saveProject': { const s = requireStore(); s.updateProject(args[0], args[1], args[2]); registry.register(s.root, args[0]); return s.workspace(); }
       case 'connectDocuments': requireStore().addRelation(args[0], args[1], args[2]); return requireStore().workspace();
       case 'removeRelation': requireStore().remove('relation', args[0]); return requireStore().workspace();
       case 'exportDocuments': {

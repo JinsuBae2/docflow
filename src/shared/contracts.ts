@@ -1,5 +1,8 @@
 export type Id = string;
 export type Revision = string;
+export interface ProjectEntry { id: Id; name: string; root: string; lastOpenedAt: string; error?: string }
+export interface EditorDraft { documentId: Id; markdown: string; baseRevision: Revision }
+export interface ProjectSession { selectedId: Id; view: 'document' | 'graph' | 'diagram'; prompt: string; collapsed: boolean }
 export interface AiModel { model: string; displayName: string; isDefault: boolean }
 export type AiProviderId = 'codex' | 'claude';
 export interface Preferences { provider: AiProviderId; model: string; models: Record<AiProviderId, string>; onboardingDone: boolean }
@@ -22,10 +25,17 @@ export interface AiResponse { message: string; proposals: ProposalDraft[] }
 export type AiEvent = { type: 'progress'; text: string } | { type: 'result'; response: AiResponse } | { type: 'cancelled' } | { type: 'error'; message: string };
 export interface ProviderStatus { connected: boolean; label: string; detail: string }
 export interface Message { id: Id; role: 'user' | 'assistant'; text: string; requestId: Id; createdAt: string }
-export interface Workspace { root: string; project: Project; documents: Document[]; relations: Relation[]; decisions: Decision[]; proposals: Proposal[]; messages: Message[]; staleDiagramIds: Id[]; documentIssues: string[] }
+export interface Workspace { root: string; project: Project; documents: Document[]; relations: Relation[]; decisions: Decision[]; proposals: Proposal[]; messages: Message[]; staleDiagramIds: Id[]; documentIssues: string[]; drafts?: EditorDraft[]; session?: ProjectSession }
 export interface ContextInput { instruction: string; selectedIds: Id[]; excludedIds: Id[]; maxCharacters?: number }
 export interface RequestEvent { requestId: Id; event: AiEvent }
 export interface WorkspaceApi {
+  listProjects(): Promise<ProjectEntry[]>;
+  projectDocuments(id: Id): Promise<Array<Pick<Document, 'id' | 'title' | 'type'>>>;
+  activateProject(id: Id): Promise<Workspace>;
+  forgetProject(id: Id): Promise<Workspace | null>;
+  saveSession(session: ProjectSession, projectRoot: string): Promise<void>;
+  saveDraft(draft: EditorDraft, projectRoot: string): Promise<void>;
+  discardDraft(documentId: Id, projectRoot: string): Promise<void>;
   openProject(): Promise<Workspace | null>;
   createProject(): Promise<Workspace | null>;
   openExample(): Promise<Workspace>;
