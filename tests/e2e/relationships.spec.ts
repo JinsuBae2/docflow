@@ -7,7 +7,19 @@ test('previews AI relationship evidence, applies only reviewed links and edits c
   const app = await electron.launch({ args: [resolve('out/main/index.js')], env: { ...process.env, NODE_ENV: 'test', DOCFLOW_DATA_DIR: root, DOCFLOW_TEST_NODE: process.execPath, DOCFLOW_TEST_FIXTURE: resolve('tests/fixtures/fake-codex.cjs') } });
   try {
     const page = await app.firstWindow(); await page.getByRole('button', { name: '안내 닫기' }).click(); await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
+    await page.getByRole('button', { name: 'Markdown 편집', exact: true }).click();
+    const original = await page.getByRole('textbox', { name: 'Markdown 본문' }).inputValue();
+    await page.getByRole('textbox', { name: 'Markdown 본문' }).fill(original + '\n보존된 초안');
+    page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: '관계 지도', exact: true }).click();
+    await page.getByRole('button', { name: 'AI로 관계 검토', exact: true }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /초안.*저장/ })).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await page.getByRole('button', { name: '문서', exact: true }).click();
+    await expect(page.getByRole('textbox', { name: 'Markdown 본문' })).toHaveValue(/보존된 초안/);
+    await page.getByRole('button', { name: '저장', exact: true }).click();
+    await page.getByRole('button', { name: '관계 지도', exact: true }).click();
+
     await page.getByRole('button', { name: 'AI로 관계 검토', exact: true }).click();
     const before = (await page.evaluate(() => window.workspace.current()))!;
     const dialog = page.getByRole('dialog');
