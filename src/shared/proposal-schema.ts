@@ -11,6 +11,7 @@ const documentProposalSchema = z
     sourceIds: z.array(z.string()).max(100),
     reason: z.string().min(1).max(5000),
     dependencyIds: z.array(z.string()).max(20),
+    scopedSourceId: z.string().min(1).max(250).nullable().optional(),
   })
   .strict();
 const relationProposalSchema = documentProposalSchema.extend({

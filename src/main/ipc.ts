@@ -9,6 +9,7 @@ import { ProjectRegistry } from './project/registry';
 import { ProposalService } from './project/proposals';
 import { FeedbackService } from './project/feedback';
 import { buildContext } from './project/context';
+import { AnalysisService } from './project/analysis';
 import { exampleDocuments } from './project/examples';
 import { prepareImports } from './project/imports';
 import { CodexProvider } from './ai/codex-provider';
@@ -46,6 +47,14 @@ const contextSchema = z
   })
   .strict();
 const schemas: Record<string, z.ZodType> = {
+  prepareAnalysis: z.tuple([
+    contextSchema.extend({
+      contextTokens: z.number().int().min(20000).max(200000).optional(),
+      outputTokens: z.number().int().min(1024).max(8192).optional(),
+    }),
+  ]),
+  listAnalyses: z.tuple([]),
+  startAnalysis: z.tuple([id]),
   usageSummary: z.tuple([]),
   usageLimits: z.tuple([z.enum(['codex', 'claude']).optional()]),
   updateRelation: z.tuple([id, z.string().trim().min(1).max(80)]),
@@ -473,6 +482,68 @@ export function registerWorkspace(window: BrowserWindow) {
       }
       case 'previewContext':
         return buildContext(args[0], requireStore());
+      case 'listAnalyses':
+        return new AnalysisService(requireStore()).list();
+      case 'prepareAnalysis': {
+        if (controller) throw new Error('진행 중인 AI 요청이 끝난 뒤 분석을 계획해 주세요.');
+        const current = requireStore();
+        const preferences = readSettings();
+        let model = preferences.model;
+        if (!model) {
+          const client = makeProvider(preferences.provider);
+          try {
+            model = (await client.listModels()).find((item) => item.isDefault)?.model || '';
+          } finally {
+            await client.close();
+          }
+        }
+        if (current !== store || controller)
+          throw new Error('프로젝트 또는 요청 상태가 바뀌었습니다. 다시 계획해 주세요.');
+        return new AnalysisService(current).prepare(args[0], {
+          provider: preferences.provider,
+          model,
+        });
+      }
+      case 'startAnalysis': {
+        if (controller) throw new Error('이전 AI 요청이 진행 중입니다.');
+        const service = new AnalysisService(requireStore());
+        const record = service.get(args[0]);
+        const preferences = readSettings();
+        if (
+          record.provider !== preferences.provider ||
+          (preferences.model && record.model !== preferences.model)
+        )
+          throw new Error('제공자 또는 모델이 변경되었습니다. 분석 계획을 다시 만들어 주세요.');
+        controller = new AbortController();
+        const currentController = controller;
+        setTimeout(async () => {
+          let terminal: AiEvent = {
+            type: 'error',
+            message: '분석이 중단되었습니다. 재개해 주세요.',
+          };
+          try {
+            for await (const event of service.run(
+              record.id,
+              () => {
+                provider = makeProvider(record.provider);
+                return provider;
+              },
+              currentController.signal,
+            )) {
+              if (event.type === 'result' || event.type === 'error' || event.type === 'cancelled')
+                terminal = event;
+              else notify(record.id, event);
+            }
+          } catch (error) {
+            terminal = { type: 'error', message: (error as Error).message };
+          } finally {
+            controller = undefined;
+            provider = undefined;
+            notify(record.id, terminal);
+          }
+        }, 25);
+        return record.id;
+      }
       case 'providerStatus': {
         const client = makeProvider(args[0]);
         try {

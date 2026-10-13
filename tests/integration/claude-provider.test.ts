@@ -38,6 +38,28 @@ async function events(
 }
 
 describe('Claude API provider', () => {
+  it('forwards the explicit analysis output budget', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce(json(models))
+      .mockResolvedValueOnce(json(response));
+    const provider = new ClaudeProvider(() => 'fixture-key', request);
+    for await (const _ of provider.run(
+      {
+        ...context,
+        budget: {
+          contextTokens: 32768,
+          inputTokens: 16384,
+          outputTokens: 4096,
+          reserveTokens: 8192,
+        },
+      },
+      new AbortController().signal,
+      'test-claude',
+    ))
+      void _;
+    expect(JSON.parse(request.mock.calls[1][1].body).max_tokens).toBe(4096);
+  });
   it('retains measured usage when cancellation arrives after the response body', async () => {
     const controller = new AbortController();
     const request = vi

@@ -181,7 +181,7 @@ export class ClaudeProvider implements AiProvider {
         'messages',
         {
           model,
-          max_tokens: 8192,
+          max_tokens: context.budget?.outputTokens ?? 8192,
           system: documentInstructions,
           messages: [{ role: 'user', content: JSON.stringify(context) }],
           output_config: { format: { type: 'json_schema', schema: apiSchema(outputSchema) } },

@@ -11,6 +11,8 @@ import type {
   Decision,
   Proposal,
   ContextSnapshot,
+  ContextSource,
+  AnalysisSummary,
   Message,
   EditorDraft,
   ProjectSession,
@@ -44,6 +46,8 @@ export class ProjectStore {
       if (usage.status === 'running') this.put('usage', { ...usage, status: 'error' });
     for (const feedback of this.all<RejectionFeedback>('feedback'))
       if (feedback.status === 'running') this.put('feedback', { ...feedback, status: 'failed' });
+    for (const analysis of this.all<AnalysisSummary>('analysis'))
+      if (analysis.status === 'running') this.put('analysis', { ...analysis, status: 'paused' });
   }
   static async open(root: string) {
     mkdirSync(root, { recursive: true });
@@ -434,6 +438,42 @@ export class ProjectStore {
       session: this.get<ProjectSession>('session', 'current'),
       feedbacks: this.all<RejectionFeedback>('feedback'),
     };
+  }
+  saveExcerpt(source: ContextSource, replacement: string, proposalId: string) {
+    const doc = this.document(source.documentId);
+    if (
+      doc.revision !== source.revision ||
+      !source.range ||
+      doc.markdown.slice(source.range.start, source.range.end) !== source.content
+    )
+      throw new Error('발췌 원문이 변경되었습니다. 다시 검토해 주세요.');
+    if (this.all<EditorDraft>('draft').some((d) => d.documentId === doc.id))
+      throw new Error('초안을 저장하거나 취소한 뒤 제안을 수락해 주세요.');
+    const markdown =
+      doc.markdown.slice(0, source.range.start) +
+      replacement +
+      doc.markdown.slice(source.range.end);
+    const parsed =
+      doc.source === 'linked' ? parseLinkedDocument(markdown, doc) : parseDocument(markdown, doc);
+    if (
+      parsed.markdown.replace(/\r\n/g, '\n') !== markdown.replace(/\r\n/g, '\n') ||
+      (doc.source !== 'linked' &&
+        doc.sections.some((s) => !parsed.sections.some((next) => next.id === s.id)))
+    )
+      throw new Error('발췌 수정에서 문서 식별자가 변경되었습니다. 원문 ID를 보존해 주세요.');
+    const saved = { ...parsed, markdown, revision: revisionOf(markdown) };
+    this.checkSize(saved);
+    commitFile(
+      this.root,
+      {
+        path: saved.relativePath,
+        before: doc.markdown,
+        after: markdown,
+        record: this.record(saved),
+        proposalId,
+      },
+      (op) => this.persistOperation(op),
+    );
   }
   async saveFlow(id: string, sourceRevision: string, code: string): Promise<Workspace> {
     const flow = this.workspace().flows.find((flow) => flow.id === id);

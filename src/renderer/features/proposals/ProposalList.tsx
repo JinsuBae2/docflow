@@ -45,7 +45,11 @@ function ProposalItem({
   const [feedbackId, setFeedbackId] = useState(() => crypto.randomUUID());
   const feedback = workspace.feedbacks?.find((f) => f.proposalId === p.id);
   const target = workspace.documents.find((d) => d.id === p.targetId);
-  const before = p.kind === 'update' ? target?.markdown || '' : '';
+  const scope = p.sourceRanges?.find((s) => s.id === p.scopedSourceId);
+  const before =
+    p.kind === 'update'
+      ? (scope ? target?.markdown.slice(scope.start, scope.end) : target?.markdown) || ''
+      : '';
   const icon =
     p.kind === 'create' ? (
       <FilePlus2 size={15} />
@@ -57,7 +61,12 @@ function ProposalItem({
       <FilePenLine size={15} />
     );
   const source = (id: string) =>
-    workspace.documents.find((d) => d.id === id || d.sections.some((s) => s.id === id));
+    workspace.documents.find(
+      (d) =>
+        d.id === id ||
+        d.sections.some((s) => s.id === id) ||
+        p.sourceRanges?.some((s) => s.id === id && s.documentId === d.id),
+    );
   return (
     <section className={'proposal-item proposal-' + p.status}>
       <button className="proposal-heading" onClick={() => setExpanded(!expanded)}>
@@ -90,9 +99,14 @@ function ProposalItem({
             </div>
           )}
           <p className="proposal-reason">{p.reason}</p>
+          {scope && (
+            <p className="processed-note">
+              발췌 범위만 수정: {scope.start}–{scope.end} · 기준 {p.baseRevision?.slice(0, 8)}
+            </p>
+          )}
           <div className="source-links">
             {p.sourceIds.map((id) => (
-              <button key={id} onClick={() => onSource(id)}>
+              <button key={id} onClick={() => onSource(source(id)?.id || id)}>
                 <ArrowUpRight size={11} />
                 {source(id)?.title || '근거 확인'}
               </button>

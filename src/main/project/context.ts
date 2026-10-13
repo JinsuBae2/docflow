@@ -30,19 +30,40 @@ export async function buildContext(
     ws.documents.find((d) => d.id === id || d.sections.some((s) => s.id === id));
   for (const id of selected)
     if (!docFor(id)) throw new Error('선택한 문서를 찾을 수 없습니다. 최신 문서를 확인해 주세요.');
-  const source = (doc: Document, sectionId?: string): ContextSource => ({
-    id: sectionId || doc.id,
-    documentId: doc.id,
-    title: sectionId ? doc.sections.find((s) => s.id === sectionId)!.title : doc.title,
-    revision: doc.revision,
-    content: sectionId ? doc.sections.find((s) => s.id === sectionId)!.content : doc.markdown,
-  });
+  const source = (doc: Document, sectionId?: string): ContextSource => {
+    const section = doc.sections.find((s) => s.id === sectionId);
+    const offsets = [0];
+    for (let i = 0; i < doc.markdown.length; i++) if (doc.markdown[i] === '\n') offsets.push(i + 1);
+    const next = section && doc.sections[section.order + 1];
+    const range = section
+      ? {
+          start: offsets[section.line - 1],
+          end: next ? offsets[next.line - 1] : doc.markdown.length,
+        }
+      : undefined;
+    return {
+      id: sectionId || doc.id,
+      documentId: doc.id,
+      title: section?.title || doc.title,
+      revision: doc.revision,
+      content: range ? doc.markdown.slice(range.start, range.end) : doc.markdown,
+      complete: !sectionId,
+      sectionId,
+      range,
+    };
+  };
   const sources: ContextSource[] = [];
   const omittedIds: string[] = [];
   for (const id of selected) {
     const doc = docFor(id)!;
-    if (!excluded.has(id) && !excluded.has(doc.id))
-      sources.push(source(doc, id === doc.id ? undefined : id));
+    if (!excluded.has(id) && !excluded.has(doc.id)) {
+      if (id === doc.id && doc.sections.some((s) => excluded.has(s.id))) {
+        sources.push(
+          ...doc.sections.filter((s) => !excluded.has(s.id)).map((s) => source(doc, s.id)),
+        );
+        omittedIds.push(doc.id);
+      } else sources.push(source(doc, id === doc.id ? undefined : id));
+    }
   }
   const { id: _id, ...project } = ws.project;
   const snapshot: ContextSnapshot = {
@@ -75,7 +96,9 @@ export async function buildContext(
     snapshot.proposalHistory = snapshot.proposalHistory.map((p) => ({ ...p, reason: '' }));
   }
   if (JSON.stringify(snapshot).length > limit)
-    throw new Error('필수 맥락이 너무 큽니다. 선택 범위를 줄여 주세요.');
+    throw new Error(
+      '필수 맥락이 너무 큽니다. 프로젝트 전체 분석에서 분할하거나 선택 범위를 줄여 주세요.',
+    );
   const linkedIds = new Set(
     ws.relations
       .filter(
@@ -90,19 +113,43 @@ export async function buildContext(
     .toLowerCase()
     .split(/\s+/)
     .filter((w) => w.length > 1);
-  const candidates = ws.documents.filter(
-    (doc) =>
-      linkedIds.has(doc.id) ||
-      doc.sections.some((s) => linkedIds.has(s.id)) ||
-      words.some((w) => (doc.title + ' ' + doc.markdown).toLowerCase().includes(w)),
-  );
+  const candidates = ws.documents
+    .filter(
+      (doc) =>
+        linkedIds.has(doc.id) ||
+        doc.sections.some((s) => linkedIds.has(s.id)) ||
+        words.some((w) => (doc.title + ' ' + doc.markdown).toLowerCase().includes(w)),
+    )
+    .sort(
+      (a, b) =>
+        Number(linkedIds.has(b.id)) - Number(linkedIds.has(a.id)) ||
+        words.filter((w) => b.title.toLowerCase().includes(w)).length -
+          words.filter((w) => a.title.toLowerCase().includes(w)).length,
+    );
   for (const doc of candidates) {
     if (sources.some((s) => s.documentId === doc.id) || excluded.has(doc.id)) continue;
     const item = source(doc);
-    sources.push(item);
-    if (JSON.stringify(snapshot).length > limit) {
+    if (!doc.sections.some((s) => excluded.has(s.id))) {
+      sources.push(item);
+      if (JSON.stringify(snapshot).length <= limit) continue;
       sources.pop();
-      omittedIds.push(doc.id);
+    }
+    omittedIds.push(doc.id);
+    const sections = doc.sections.filter(
+      (s) =>
+        !excluded.has(s.id) &&
+        (linkedIds.has(doc.id) ||
+          linkedIds.has(s.id) ||
+          words.some((w) => (s.title + ' ' + s.content).toLowerCase().includes(w))),
+    );
+    sections.sort(
+      (a, b) =>
+        words.filter((w) => b.title.toLowerCase().includes(w)).length -
+        words.filter((w) => a.title.toLowerCase().includes(w)).length,
+    );
+    for (const section of sections) {
+      sources.push(source(doc, section.id));
+      if (JSON.stringify(snapshot).length > limit) sources.pop();
     }
   }
   for (const id of excluded) if (!omittedIds.includes(id)) omittedIds.push(id);
