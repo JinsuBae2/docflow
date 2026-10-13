@@ -5,6 +5,12 @@ export interface EditorDraft { documentId: Id; markdown: string; baseRevision: R
 export interface ProjectSession { selectedId: Id; view: 'document' | 'graph' | 'diagram'; prompt: string; collapsed: boolean }
 export interface AiModel { model: string; displayName: string; isDefault: boolean }
 export type AiProviderId = 'codex' | 'claude';
+export type UsageReason = 'no_history' | 'unsupported' | 'auth_mode' | 'auth_required' | 'network' | 'missing_response' | 'invalid_response';
+export interface UsageReport { inputTokens: number | null; outputTokens: number | null; cachedInputTokens: number | null; cacheWriteInputTokens: number | null; totalTokens: number | null; reason?: UsageReason }
+export interface UsageWindow { id: string; label: string; unit: 'percent' | 'tokens' | 'requests'; windowMinutes: number | null; limit: number | null; remaining: number | null; remainingPercent: number | null; resetsAt: string | null; reason?: UsageReason }
+export interface UsageLimits { provider: AiProviderId; checkedAt: string | null; source: 'account' | 'response'; windows: UsageWindow[]; reason?: UsageReason }
+export interface RequestUsage { id: Id; provider: AiProviderId | null; model: string | null; createdAt: string; status: 'running' | 'completed' | 'error' | 'cancelled' | 'unknown'; usage: UsageReport }
+export interface UsageSummary { requests: RequestUsage[]; totals: Array<{ provider: AiProviderId; totalTokens: number; knownRequests: number; unknownRequests: number }> }
 export interface Preferences { provider: AiProviderId; model: string; models: Record<AiProviderId, string>; onboardingDone: boolean }
 export type PreferencesPatch = Partial<Pick<Preferences, 'provider' | 'model' | 'onboardingDone'>>;
 export interface ImportInput { name: string; text: string }
@@ -23,7 +29,7 @@ export interface Proposal extends ProposalDraft { id: Id; requestId: Id; snapsho
 export interface ContextSource { id: Id; documentId: Id; title: string; revision: Revision; content: string }
 export interface ContextSnapshot { id: Id; requestId: Id; instruction: string; project: Omit<Project, 'id'>; sources: ContextSource[]; decisions: Decision[]; proposalHistory: Array<{ id: Id; title: string; status: ProposalStatus; reason: string; rejectionReason?: string }>; omittedIds: Id[]; revisionProposal?: Proposal; relations?: Array<Pick<Relation, 'fromId' | 'toId' | 'type'>>; omittedRelationCount?: number }
 export interface AiResponse { message: string; proposals: ProposalDraft[] }
-export type AiEvent = { type: 'progress'; text: string } | { type: 'result'; response: AiResponse } | { type: 'cancelled' } | { type: 'error'; message: string };
+export type AiEvent = { type: 'progress'; text: string } | { type: 'usage'; usage: UsageReport; model?: string; limits?: UsageLimits } | { type: 'result'; response: AiResponse } | { type: 'cancelled' } | { type: 'error'; message: string };
 export interface ProviderStatus { connected: boolean; label: string; detail: string }
 export interface Message { id: Id; role: 'user' | 'assistant'; text: string; requestId: Id; createdAt: string }
 export interface Workspace { root: string; project: Project; documents: Document[]; relations: Relation[]; decisions: Decision[]; proposals: Proposal[]; messages: Message[]; staleDiagramIds: Id[]; documentIssues: string[]; drafts?: EditorDraft[]; session?: ProjectSession }
@@ -38,6 +44,8 @@ export interface WorkspaceApi {
   saveSession(session: ProjectSession, projectRoot: string): Promise<void>;
   saveDraft(draft: EditorDraft, projectRoot: string): Promise<void>;
   discardDraft(documentId: Id, projectRoot: string): Promise<void>;
+  usageSummary(): Promise<UsageSummary>;
+  usageLimits(provider?: AiProviderId): Promise<UsageLimits>;
   openProject(): Promise<Workspace | null>;
   createProject(): Promise<Workspace | null>;
   openExample(): Promise<Workspace>;
