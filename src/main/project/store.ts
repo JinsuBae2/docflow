@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { basename } from 'node:path';
-import type { Document, DocumentType, Project, Workspace, Relation, Decision, Proposal, ContextSnapshot, Message, EditorDraft, ProjectSession, RequestUsage, UsageSummary, AiProviderId } from '../../shared/contracts';
+import type { Document, DocumentType, Project, Workspace, Relation, Decision, Proposal, ContextSnapshot, Message, EditorDraft, ProjectSession, RequestUsage, UsageSummary, AiProviderId, RejectionFeedback } from '../../shared/contracts';
 import { parseDocument, revisionOf } from './markdown';
 import { ensureProjectDirectory, safePath, readDocumentFile } from './files';
 import { commitFile, recoverPendingOperations, type RecoveryOperation } from './recovery';
@@ -16,12 +16,18 @@ export class ProjectStore {
     this.db.exec('PRAGMA journal_mode=WAL; PRAGMA user_version=1; CREATE TABLE IF NOT EXISTS records (kind TEXT NOT NULL, id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY(kind,id));');
     if (!this.all<Project>('project').length) this.put('project', { id: randomUUID(), name: basename(root), goal: '', constraints: '' });
     recoverPendingOperations(root, op => this.persistOperation(op));
+    for (const feedback of this.all<RejectionFeedback>('feedback')) if (feedback.status === 'running') this.put('feedback', { ...feedback, status: 'failed' });
   }
   static async open(root: string) { mkdirSync(root, { recursive: true }); return new ProjectStore(realpathSync(root)); }
   all<T>(kind: string): T[] { return (this.db.prepare('SELECT value FROM records WHERE kind=? ORDER BY rowid').all(kind) as { value: string }[]).map(row => JSON.parse(row.value)); }
   get<T>(kind: string, id: string): T | undefined { const row = this.db.prepare('SELECT value FROM records WHERE kind=? AND id=?').get(kind, id) as { value: string } | undefined; return row ? JSON.parse(row.value) : undefined; }
   put<T extends { id: string }>(kind: string, record: T) { this.db.prepare('INSERT INTO records(kind,id,value) VALUES (?,?,?) ON CONFLICT(kind,id) DO UPDATE SET value=excluded.value').run(kind, record.id, JSON.stringify(record)); }
   remove(kind: string, id: string) { this.db.prepare('DELETE FROM records WHERE kind=? AND id=?').run(kind, id); }
+  transaction<T>(write: () => T): T {
+    this.db.exec('BEGIN IMMEDIATE');
+    try { const result = write(); this.db.exec('COMMIT'); return result; }
+    catch (error) { this.db.exec('ROLLBACK'); throw error; }
+  }
   private record(doc: Document): DocumentRecord { const { markdown: _markdown, sections, ...rest } = doc; return { ...rest, sections: sections.map(s => ({ id: s.id })) }; }
   private checkSize(doc: Document) { if (Buffer.byteLength(doc.markdown, 'utf8') > 2_000_000) throw new Error('문서 식별자를 포함한 저장 크기는 2MB 이하여야 합니다.'); }
   private persistOperation(op: RecoveryOperation) {
@@ -125,7 +131,7 @@ export class ProjectStore {
       const context = this.get<ContextSnapshot>('context', p.snapshotId);
       return context?.sources.some(s => p.sourceIds.includes(s.id) && documents.find(d => d.id === s.documentId)?.revision !== s.revision);
     }).map(p => p.resultDocumentId!);
-    return { root: this.root, project: this.all<Project>('project')[0], documents, relations: this.all<Relation>('relation'), decisions: this.all<Decision>('decision'), proposals, messages: this.all<Message>('message'), staleDiagramIds, documentIssues: this.documentIssues, drafts: this.all<EditorDraft & { id: string }>('draft').map(({ id: _id, ...draft }) => draft), session: this.get<ProjectSession>('session', 'current') };
+    return { root: this.root, project: this.all<Project>('project')[0], documents, relations: this.all<Relation>('relation'), decisions: this.all<Decision>('decision'), proposals, messages: this.all<Message>('message'), staleDiagramIds, documentIssues: this.documentIssues, drafts: this.all<EditorDraft & { id: string }>('draft').map(({ id: _id, ...draft }) => draft), session: this.get<ProjectSession>('session', 'current'), feedbacks: this.all<RejectionFeedback>('feedback') };
   }
   saveSnapshot(snapshot: ContextSnapshot) { this.put('context', snapshot); }
   close() { this.db.close(); }

@@ -26,13 +26,14 @@ export type ProposalStatus = 'pending' | 'accepted' | 'rejected' | 'superseded' 
 export interface RelationDraft { fromId: Id; toId: Id; relationType: string; fromRevision: Revision; toRevision: Revision }
 export interface ProposalDraft { kind: 'create' | 'update' | 'diagram' | 'decision' | 'relation'; title: string; documentType: DocumentType; targetId: Id | null; baseRevision: Revision | null; replacement: string; sourceIds: Id[]; reason: string; dependencyIds: Id[]; relation?: RelationDraft }
 export interface Proposal extends ProposalDraft { id: Id; requestId: Id; snapshotId: Id; status: ProposalStatus; createdAt: string; rejectionReason?: string; replacesId?: Id; resultDocumentId?: Id }
+export interface RejectionFeedback { id: Id; proposalId: Id; reason: string; messageId?: Id; status: 'ready' | 'running' | 'failed' | 'completed'; requestId?: Id }
 export interface ContextSource { id: Id; documentId: Id; title: string; revision: Revision; content: string }
-export interface ContextSnapshot { id: Id; requestId: Id; instruction: string; project: Omit<Project, 'id'>; sources: ContextSource[]; decisions: Decision[]; proposalHistory: Array<{ id: Id; title: string; status: ProposalStatus; reason: string; rejectionReason?: string }>; omittedIds: Id[]; revisionProposal?: Proposal; relations?: Array<Pick<Relation, 'fromId' | 'toId' | 'type'>>; omittedRelationCount?: number }
+export interface ContextSnapshot { id: Id; requestId: Id; instruction: string; project: Omit<Project, 'id'>; sources: ContextSource[]; decisions: Decision[]; proposalHistory: Array<{ id: Id; title: string; status: ProposalStatus; reason: string; rejectionReason?: string }>; omittedIds: Id[]; revisionProposal?: Proposal; rejectedProposal?: Pick<Proposal, 'id' | 'title' | 'kind' | 'rejectionReason'>; relations?: Array<Pick<Relation, 'fromId' | 'toId' | 'type'>>; omittedRelationCount?: number }
 export interface AiResponse { message: string; proposals: ProposalDraft[] }
 export type AiEvent = { type: 'progress'; text: string } | { type: 'usage'; usage: UsageReport; model?: string; limits?: UsageLimits } | { type: 'result'; response: AiResponse } | { type: 'cancelled' } | { type: 'error'; message: string };
 export interface ProviderStatus { connected: boolean; label: string; detail: string }
 export interface Message { id: Id; role: 'user' | 'assistant'; text: string; requestId: Id; createdAt: string }
-export interface Workspace { root: string; project: Project; documents: Document[]; relations: Relation[]; decisions: Decision[]; proposals: Proposal[]; messages: Message[]; staleDiagramIds: Id[]; documentIssues: string[]; drafts?: EditorDraft[]; session?: ProjectSession }
+export interface Workspace { root: string; project: Project; documents: Document[]; relations: Relation[]; decisions: Decision[]; proposals: Proposal[]; messages: Message[]; staleDiagramIds: Id[]; documentIssues: string[]; drafts?: EditorDraft[]; session?: ProjectSession; feedbacks?: RejectionFeedback[] }
 export interface ContextInput { instruction: string; selectedIds: Id[]; excludedIds: Id[]; maxCharacters?: number }
 export interface RequestEvent { requestId: Id; event: AiEvent }
 export interface WorkspaceApi {
@@ -70,6 +71,8 @@ export interface WorkspaceApi {
   cancelRequest(): Promise<void>;
   acceptProposal(id: Id): Promise<Workspace>;
   rejectProposal(id: Id, reason?: string): Promise<Workspace>;
+  sendRejection(proposalId: Id, reason: string, feedbackId: Id, input: ContextInput, projectRoot: string): Promise<Id | null>;
+  retryRejection(feedbackId: Id, input: ContextInput, projectRoot: string): Promise<Id>;
   providerStatus(provider?: AiProviderId): Promise<ProviderStatus>;
   onRequestEvent(listener: (event: RequestEvent) => void): () => void;
 }

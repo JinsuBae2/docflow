@@ -15,6 +15,7 @@ const api: WorkspaceApi = {
   updateRelation: (id, type) => call('updateRelation', id, type),
   previewContext: input => call('previewContext', input), startRequest: (input, replacesId) => call('startRequest', input, replacesId), cancelRequest: () => call('cancelRequest'),
   acceptProposal: id => call('acceptProposal', id), rejectProposal: (id, reason) => call('rejectProposal', id, reason), providerStatus: provider => call('providerStatus', provider),
+  sendRejection: (id, reason, feedbackId, input, root) => call('sendRejection', id, reason, feedbackId, input, root), retryRejection: (id, input, root) => call('retryRejection', id, input, root),
   onRequestEvent: listener => { const handler = (_event: Electron.IpcRendererEvent, value: RequestEvent) => listener(value); ipcRenderer.on('workspace:event', handler); return () => ipcRenderer.removeListener('workspace:event', handler); }
 };
 contextBridge.exposeInMainWorld('workspace', api);
