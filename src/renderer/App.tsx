@@ -89,6 +89,7 @@ export default function App() {
     const instruction = '선택한 문서의 관계 검토를 해줘. 근거가 있는 문서 연결을 relation 제안으로 설명해줘. 기존 연결을 삭제하거나 문서를 수정하지 마.';
     let characters = 0; const selected = docs.filter(d => { if (excluded.includes(d.id) || characters + d.markdown.length > 30000) return false; characters += d.markdown.length; return true; }).map(d => d.id);
     if (selected.length < 2) throw new Error('관계 검토에는 범위 안의 저장된 문서가 두 개 이상 필요합니다. 맥락 범위를 확인해 주세요.');
+    if (workspace?.drafts?.some(draft => selected.includes(draft.documentId))) throw new Error('관계 검토 대상에 미저장 초안이 있습니다. 초안을 저장한 뒤 검토해 주세요.');
     const omitted = docs.filter(d => !selected.includes(d.id)).map(d => d.id); setIncluded(selected); setExcluded(omitted); preparePrompt(instruction);
     setContext(await window.workspace.previewContext({ instruction, selectedIds: selected, excludedIds: omitted })); setModal('context');
   });
