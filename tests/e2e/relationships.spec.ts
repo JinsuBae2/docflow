@@ -15,6 +15,17 @@ test('previews AI relationship evidence, applies only reviewed links and edits c
     await page.getByRole('button', { name: 'AI로 관계 검토', exact: true }).click();
     await expect(page.getByRole('alert').filter({ hasText: /초안.*저장/ })).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(0);
+    const draftWorkspace = (await page.evaluate(() => window.workspace.current()))!;
+    await page.locator('.context-chip').click();
+    await page.getByRole('dialog').locator('.context-source').filter({ hasText: draftWorkspace.documents[0].title }).getByRole('checkbox').uncheck();
+    await page.getByRole('dialog').getByRole('button', { name: '확인', exact: true }).click();
+    await page.getByRole('button', { name: 'AI로 관계 검토', exact: true }).click();
+    const restoredSource = page.getByRole('dialog').locator('.context-source').filter({ hasText: draftWorkspace.documents[0].title }).getByRole('checkbox');
+    await restoredSource.click(); await expect(restoredSource).toBeChecked();
+    await page.getByRole('dialog').getByRole('button', { name: '확인', exact: true }).click();
+    await page.getByRole('button', { name: '요청 보내기', exact: true }).click();
+    await expect(page.getByRole('alert').filter({ hasText: /초안.*저장/ })).toBeVisible();
+    expect((await page.evaluate(() => window.workspace.current()))!.messages).toHaveLength(0);
     await page.getByRole('button', { name: '문서', exact: true }).click();
     await expect(page.getByRole('textbox', { name: 'Markdown 본문' })).toHaveValue(/보존된 초안/);
     await page.getByRole('button', { name: '저장', exact: true }).click();

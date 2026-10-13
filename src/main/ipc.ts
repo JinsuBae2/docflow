@@ -15,7 +15,7 @@ import { ClaudeProvider } from './ai/claude-provider';
 import { CredentialStore } from './ai/credential-store';
 import { normalizePreferences, updatePreferences } from './ai/settings';
 import type { AiProvider } from './ai/provider';
-import type { ContextInput, AiEvent, Message, Preferences, ImportInput, AiProviderId, RequestUsage, UsageLimits } from '../shared/contracts';
+import type { ContextInput, ContextSnapshot, AiEvent, Message, Preferences, ImportInput, AiProviderId, RequestUsage, UsageLimits } from '../shared/contracts';
 import { normalizeCodexUsage } from './ai/usage';
 import { documentTypeSchema } from '../shared/proposal-schema';
 const str = z.string().max(2_000_000).refine(text => Buffer.byteLength(text, 'utf8') <= 2_000_000, '2MB 이하의 Markdown만 저장할 수 있습니다.'); const id = z.string().min(1).max(250);
@@ -169,9 +169,10 @@ export function registerWorkspace(window: BrowserWindow) {
         const replacesId = isFeedback ? undefined : args[1];
         const preferences = readSettings();
         controller = new AbortController(); const currentController = controller;
-        let snapshot;
+        let snapshot: ContextSnapshot;
         try {
           snapshot = await buildContext(feedback ? { ...input, instruction: `거절 이유를 검토하고 답변하거나 보완안을 제안해 주세요: ${feedback.reason}` } : input, s, replacesId, feedback?.id);
+          if (s.workspace().drafts?.some(draft => snapshot.sources.some(source => source.documentId === draft.documentId))) throw new Error('요청 맥락에 미저장 초안이 있습니다. 초안을 저장하거나 해당 문서를 제외해 주세요.');
           if (feedback) feedbackService.setStatus(feedback.id, 'running', snapshot.requestId);
           provider = makeProvider(preferences.provider);
         } catch (error) { controller = undefined; if (feedback) feedbackService.setStatus(feedback.id, 'failed'); throw error; }
