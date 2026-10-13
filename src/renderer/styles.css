@@ -2618,3 +2618,47 @@ select {
   font-size: 12px;
   margin: 0 0 12px;
 }
+
+button.document-link {
+  padding: 0;
+  display: inline;
+  text-align: inherit;
+  text-decoration: underline;
+  overflow-wrap: anywhere;
+}
+button.document-link[data-link-status='blocked'],
+button.document-link[data-link-status='missing'],
+button.document-link[data-link-status='missing-anchor'] {
+  color: #b42318;
+  text-decoration-style: dotted;
+}
+.document-links-panel {
+  border-top: 1px solid var(--border);
+  margin: 24px 0;
+  padding-top: 16px;
+}
+.document-links-panel h3 {
+  margin-right: auto;
+}
+.document-link-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 8px 0;
+}
+.document-link-row code,
+.external-link-url {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+.document-link-row small,
+.document-link-row p,
+.relation-origin {
+  color: var(--muted);
+  font-size: 11px;
+}
+.document-link-row p {
+  width: 100%;
+  margin: 0;
+}

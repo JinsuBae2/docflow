@@ -1,6 +1,6 @@
 import { lstatSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { safePath, readDocumentFile } from './files';
+import { safePath, readDocumentFile, fileIdentity } from './files';
 import { revisionOf } from './markdown';
 import type { DocumentDiscovery } from '../../shared/contracts';
 
@@ -33,7 +33,7 @@ export function discoverDocuments(
   let visited = 0;
   let stopped = false;
   const key = (path: string) => (process.platform === 'win32' ? path.toLowerCase() : path);
-  const registeredKeys = new Set([...registered].map(key));
+  const registeredKeys = new Set([...registered].map((path) => fileIdentity(root, path)));
   const visit = (path: string, collecting: boolean, depth: number) => {
     if (stopped || seen.has(key(path))) return;
     seen.add(key(path));
@@ -69,7 +69,8 @@ export function discoverDocuments(
       const relativePath = path.replace(/\\/g, '/');
       if (!stat.isFile()) throw new Error('일반 파일만 지원합니다.');
       if (!/\.(md|markdown)$/i.test(path)) throw new Error('Markdown 형식만 지원합니다.');
-      if (registeredKeys.has(key(relativePath))) throw new Error('이미 등록된 문서입니다.');
+      if (registeredKeys.has(fileIdentity(root, relativePath)))
+        throw new Error('이미 등록된 문서입니다.');
       const text = readDocumentFile(root, path);
       if (text.includes('\0')) throw new Error('텍스트 Markdown 파일만 지원합니다.');
       result.files.push({ path: relativePath, bytes, revision: revisionOf(text) });

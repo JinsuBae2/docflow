@@ -147,6 +147,30 @@ export interface Relation {
   toId: Id;
   type: string;
   confirmed: boolean;
+  origin?: 'manual' | 'ai' | 'markdown';
+  linkId?: Id;
+}
+export interface DocumentLink {
+  id: Id;
+  documentId: Id;
+  revision: Revision;
+  href: string;
+  label: string;
+  line: number;
+  column: number;
+  status: 'resolved' | 'unregistered' | 'missing' | 'missing-anchor' | 'external' | 'blocked';
+  targetId?: Id;
+  targetDocumentId?: Id;
+  targetSectionId?: Id;
+  targetPath?: string;
+  reason?: string;
+}
+export interface DocumentAnchor {
+  id: Id;
+  documentId: Id;
+  slug: string;
+  line: number;
+  sectionId: Id;
 }
 export interface Decision {
   id: Id;
@@ -251,6 +275,8 @@ export interface Workspace {
   messages: Message[];
   staleDiagramIds: Id[];
   documentIssues: string[];
+  documentLinks: DocumentLink[];
+  documentAnchors: DocumentAnchor[];
   drafts?: EditorDraft[];
   session?: ProjectSession;
   feedbacks?: RejectionFeedback[];
@@ -282,6 +308,24 @@ export interface WorkspaceApi {
   previewDocumentPaths(kind: 'files' | 'folder'): Promise<DocumentRegistrationPreview | null>;
   confirmDocumentRegistration(id: Id, paths: string[]): Promise<Workspace>;
   cancelDocumentRegistration(id: Id): Promise<void>;
+  resolveDocumentLink(
+    documentId: Id,
+    linkId: Id,
+    revision: Revision,
+    root: string,
+  ): Promise<DocumentLink>;
+  previewLinkedDocument(
+    documentId: Id,
+    linkId: Id,
+    revision: Revision,
+    root: string,
+  ): Promise<DocumentRegistrationPreview>;
+  openExternalDocumentLink(
+    documentId: Id,
+    linkId: Id,
+    revision: Revision,
+    root: string,
+  ): Promise<void>;
   createProject(): Promise<Workspace | null>;
   openExample(): Promise<Workspace>;
   current(): Promise<Workspace | null>;
