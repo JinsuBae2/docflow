@@ -81,6 +81,21 @@ export class ProjectStore {
     const relation = { id: randomUUID(), fromId, toId, type, confirmed: true }; this.put('relation', relation); return relation;
   }
   updateProject(name: string, goal: string, constraints: string) { const project = this.all<Project>('project')[0]; this.put('project', { ...project, name, goal, constraints }); }
+  updateRelation(id: string, type: string) {
+    const relation = this.get<Relation>('relation', id);
+    if (!relation) throw new Error('수정할 연결을 찾을 수 없습니다.');
+    if (this.all<Relation>('relation').some(r => r.id !== id && r.fromId === relation.fromId && r.toId === relation.toId && r.type === type)) throw new Error('같은 유형의 연결이 이미 있습니다.');
+    this.put('relation', { ...relation, type });
+  }
+  acceptRelationProposal(id: string) {
+    const proposal = this.get<Proposal>('proposal', id);
+    if (!proposal || proposal.status !== 'pending' || proposal.kind !== 'relation' || !proposal.relation) throw new Error('검토 대기 중인 관계 제안을 확인해 주세요.');
+    const relation = proposal.relation;
+    if (this.document(relation.fromId).revision !== relation.fromRevision || this.document(relation.toId).revision !== relation.toRevision) throw new Error('문서가 변경되어 관계를 다시 검토해야 합니다.');
+    this.db.exec('BEGIN IMMEDIATE');
+    try { this.addRelation(relation.fromId, relation.toId, relation.relationType); this.put('proposal', { ...proposal, status: 'accepted' }); this.db.exec('COMMIT'); }
+    catch (error) { this.db.exec('ROLLBACK'); throw error; }
+  }
   saveDraft(draft: EditorDraft) { this.document(draft.documentId); this.put('draft', { ...draft, id: draft.documentId }); }
   discardDraft(documentId: string) { this.remove('draft', documentId); }
   saveSession(session: ProjectSession) { this.put('session', { ...session, id: 'current' }); }
