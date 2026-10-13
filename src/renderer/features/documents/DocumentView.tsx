@@ -3,16 +3,20 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkFrontmatter from 'remark-frontmatter';
 import { Check, Code2, Eye, Pencil, RotateCcw, Save } from 'lucide-react';
-import type { Document, EditorDraft } from '../../../shared/contracts';
+import type { Document, EditorDraft, DocumentLink } from '../../../shared/contracts';
 export function Markdown({
   text,
   sections = [],
+  links = [],
+  onLink,
 }: {
   text: string;
   sections?: Document['sections'];
+  links?: DocumentLink[];
+  onLink?: (link: DocumentLink) => void;
 }) {
   const heading =
-    (Tag: 'h1' | 'h2' | 'h3' | 'h4') =>
+    (Tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') =>
     ({ node, children }: any) => (
       <Tag id={sections.find((s) => s.line === node?.position?.start?.line)?.id}>{children}</Tag>
     );
@@ -25,7 +29,27 @@ export function Markdown({
         h2: heading('h2'),
         h3: heading('h3'),
         h4: heading('h4'),
-        a: ({ children }) => <span className="document-link">{children}</span>,
+        h5: heading('h5'),
+        h6: heading('h6'),
+        a: ({ children, node }) => {
+          const link = links.find(
+            (link) =>
+              link.line === node?.position?.start.line &&
+              link.column === node?.position?.start.column,
+          );
+          return link && onLink ? (
+            <button
+              className="document-link"
+              data-link-status={link.status}
+              title={link.reason || link.href}
+              onClick={() => onLink(link)}
+            >
+              {children}
+            </button>
+          ) : (
+            <span className="document-link">{children}</span>
+          );
+        },
         img: ({ alt }) => <span className="image-placeholder">{alt || '첨부 이미지'}</span>,
       }}
     >
@@ -39,12 +63,16 @@ export function DocumentView({
   onDraftChange,
   onSave,
   onDirty,
+  links,
+  onLink,
 }: {
   doc: Document;
   initialDraft?: EditorDraft;
   onDraftChange: (draft: EditorDraft | null) => void;
   onSave: (text: string, revision: string) => Promise<void>;
   onDirty: (dirty: boolean) => void;
+  links?: DocumentLink[];
+  onLink?: (link: DocumentLink) => void;
 }) {
   const [editing, setEditing] = useState(!!initialDraft);
   const [draft, setDraft] = useState(initialDraft?.markdown ?? doc.markdown);
@@ -167,7 +195,7 @@ export function DocumentView({
         </div>
       ) : (
         <article className="prose">
-          <Markdown text={doc.markdown} sections={doc.sections} />
+          <Markdown text={doc.markdown} sections={doc.sections} links={links} onLink={onLink} />
         </article>
       )}
     </div>

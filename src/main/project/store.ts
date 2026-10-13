@@ -21,7 +21,8 @@ import type {
 } from '../../shared/contracts';
 import { parseDocument, parseLinkedDocument, revisionOf } from './markdown';
 import { discoverDocuments, checkDocumentPath } from './discovery';
-import { ensureProjectDirectory, safePath, readDocumentFile } from './files';
+import { indexDocumentLinks } from './links';
+import { ensureProjectDirectory, safePath, readDocumentFile, fileIdentity } from './files';
 import { commitFile, recoverPendingOperations, type RecoveryOperation } from './recovery';
 type DocumentRecord = Omit<Document, 'markdown' | 'sections'> & { sections: Array<{ id: string }> };
 export class ProjectStore {
@@ -149,7 +150,7 @@ export class ProjectStore {
     if (!files.length || files.length > 30) throw new Error('한 번에 1~30개 문서를 선택해 주세요.');
     const paths = new Set(
       this.all<DocumentRecord>('document').map((record) =>
-        process.platform === 'win32' ? record.relativePath.toLowerCase() : record.relativePath,
+        fileIdentity(this.root, record.relativePath),
       ),
     );
     let bytes = 0;
@@ -158,7 +159,7 @@ export class ProjectStore {
       if (!/\.(md|markdown)$/i.test(file.path))
         throw new Error('Markdown 파일만 등록할 수 있습니다.');
       const path = relative(this.root, safePath(this.root, file.path)).replace(/\\/g, '/');
-      const key = process.platform === 'win32' ? path.toLowerCase() : path;
+      const key = fileIdentity(this.root, path);
       if (paths.has(key)) throw new Error('이미 등록된 문서입니다.');
       paths.add(key);
       const text = readDocumentFile(this.root, path);
@@ -261,7 +262,12 @@ export class ProjectStore {
       readDocumentFile(this.root, relativePath),
     );
   }
-  addRelation(fromId: string, toId: string, type: string): Relation {
+  addRelation(
+    fromId: string,
+    toId: string,
+    type: string,
+    origin: 'manual' | 'ai' = 'manual',
+  ): Relation {
     const docs = this.listDocuments();
     const allowed = new Set(docs.flatMap((d) => [d.id, ...d.sections.map((s) => s.id)]));
     if (fromId === toId || !allowed.has(fromId) || !allowed.has(toId))
@@ -270,7 +276,7 @@ export class ProjectStore {
       (r) => r.fromId === fromId && r.toId === toId && r.type === type,
     );
     if (existing) return existing;
-    const relation = { id: randomUUID(), fromId, toId, type, confirmed: true };
+    const relation = { id: randomUUID(), fromId, toId, type, confirmed: true, origin };
     this.put('relation', relation);
     return relation;
   }
@@ -279,6 +285,7 @@ export class ProjectStore {
     this.put('project', { ...project, name, goal, constraints });
   }
   updateRelation(id: string, type: string) {
+    if (id.startsWith('markdown-')) throw new Error('원문 링크는 문서 본문에서 수정해 주세요.');
     const relation = this.get<Relation>('relation', id);
     if (!relation) throw new Error('수정할 연결을 찾을 수 없습니다.');
     if (
@@ -292,6 +299,10 @@ export class ProjectStore {
     )
       throw new Error('같은 유형의 연결이 이미 있습니다.');
     this.put('relation', { ...relation, type });
+  }
+  removeRelation(id: string) {
+    if (id.startsWith('markdown-')) throw new Error('원문 링크는 문서 본문에서 제거해 주세요.');
+    this.remove('relation', id);
   }
   acceptRelationProposal(id: string) {
     const proposal = this.get<Proposal>('proposal', id);
@@ -310,7 +321,7 @@ export class ProjectStore {
       throw new Error('문서가 변경되어 관계를 다시 검토해야 합니다.');
     this.db.exec('BEGIN IMMEDIATE');
     try {
-      this.addRelation(relation.fromId, relation.toId, relation.relationType);
+      this.addRelation(relation.fromId, relation.toId, relation.relationType, 'ai');
       this.put('proposal', { ...proposal, status: 'accepted' });
       this.db.exec('COMMIT');
     } catch (error) {
@@ -387,6 +398,7 @@ export class ProjectStore {
   }
   workspace(): Workspace {
     const documents = this.listDocuments();
+    const indexed = indexDocumentLinks(this.root, documents);
     const proposals = this.all<Proposal>('proposal');
     const staleDiagramIds = proposals
       .filter((p) => p.kind === 'diagram' && p.status === 'accepted' && p.resultDocumentId)
@@ -403,7 +415,9 @@ export class ProjectStore {
       root: this.root,
       project: this.all<Project>('project')[0],
       documents,
-      relations: this.all<Relation>('relation'),
+      relations: [...this.all<Relation>('relation'), ...indexed.relations],
+      documentLinks: indexed.links,
+      documentAnchors: indexed.anchors,
       decisions: this.all<Decision>('decision'),
       proposals,
       messages: this.all<Message>('message'),
@@ -413,6 +427,16 @@ export class ProjectStore {
       session: this.get<ProjectSession>('session', 'current'),
       feedbacks: this.all<RejectionFeedback>('feedback'),
     };
+  }
+  resolveDocumentLink(documentId: string, linkId: string, revision: string) {
+    const workspace = this.workspace();
+    if (workspace.documents.find((doc) => doc.id === documentId)?.revision !== revision)
+      throw new Error('문서가 변경되었습니다. 링크를 새로고침해 주세요.');
+    const link = workspace.documentLinks.find(
+      (link) => link.documentId === documentId && link.id === linkId,
+    );
+    if (!link) throw new Error('원문 링크를 찾을 수 없습니다.');
+    return link;
   }
   saveSnapshot(snapshot: ContextSnapshot) {
     this.put('context', snapshot);

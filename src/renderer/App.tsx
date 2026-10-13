@@ -43,10 +43,13 @@ import type {
   ProjectEntry,
   EditorDraft,
   DocumentRegistrationPreview,
+  DocumentLink,
 } from '../shared/contracts';
 import { ConnectionSetup } from './components/ConnectionSetup';
 import { ImportDialog } from './components/ImportDialog';
 import { DocumentRegistrationDialog } from './components/DocumentRegistrationDialog';
+import { DocumentLinksPanel } from './components/DocumentLinksPanel';
+import { Dialog } from './components/Dialog';
 import { UsagePanel } from './components/UsagePanel';
 import { ProjectSections } from './components/ProjectSections';
 import { Tooltip } from './components/Tooltip';
@@ -73,6 +76,9 @@ export default function App() {
   const [connectionSetup, setConnectionSetup] = useState(false);
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
   const [registration, setRegistration] = useState<DocumentRegistrationPreview | null>(null);
+  const [externalLink, setExternalLink] = useState<{ link: DocumentLink; root: string } | null>(
+    null,
+  );
   const [dragging, setDragging] = useState(false);
   const importing = useRef(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -135,6 +141,7 @@ export default function App() {
       setContext(null);
       setUsageOpen(false);
       setRegistration(null);
+      setExternalLink(null);
     }
     setWorkspace(next);
     void window.workspace
@@ -205,8 +212,8 @@ export default function App() {
     if (next !== view) setDirty(false);
     setView(next);
   };
-  const select = (id: string) => {
-    const target = docs.find((d) => d.id === id || d.sections.some((s) => s.id === id));
+  const select = (id: string, next = workspace) => {
+    const target = next?.documents.find((d) => d.id === id || d.sections.some((s) => s.id === id));
     if (!target) return;
     if (target.id !== doc?.id && !mayLeave()) return;
     setSelectedId(target.id);
@@ -219,6 +226,32 @@ export default function App() {
         80,
       );
   };
+  const followLink = (item: DocumentLink) =>
+    void act(async () => {
+      if (!workspace) return;
+      const link = await window.workspace.resolveDocumentLink(
+        item.documentId,
+        item.id,
+        item.revision,
+        workspace.root,
+      );
+      const fresh = await window.workspace.current();
+      if (fresh?.root !== workspace.root) throw new Error('프로젝트가 변경되었습니다.');
+      update(fresh);
+      if (link.status === 'resolved' && link.targetId)
+        select(link.targetSectionId || link.targetId, fresh);
+      else if (link.status === 'unregistered')
+        setRegistration(
+          await window.workspace.previewLinkedDocument(
+            link.documentId,
+            link.id,
+            link.revision,
+            workspace.root,
+          ),
+        );
+      else if (link.status === 'external') setExternalLink({ link, root: workspace.root });
+      else setError(link.reason || '링크를 열 수 없습니다.');
+    });
   const contextInput = (instruction = prompt): ContextInput => ({
     instruction: instruction.trim() || '프로젝트 맥락 확인',
     selectedIds: [...new Set([...(doc ? [doc.id] : []), ...included])],
@@ -422,7 +455,11 @@ export default function App() {
       setModal('context');
     });
   const related =
-    workspace?.relations.filter((r) => r.fromId === doc?.id || r.toId === doc?.id) || [];
+    workspace?.relations.filter((r) =>
+      [r.fromId, r.toId].some(
+        (id) => doc && (doc.id === id || doc.sections.some((section) => section.id === id)),
+      ),
+    ) || [];
   const openSettings = () => {
     if (!workspace) return;
     setProjectName(workspace.project.name);
@@ -436,6 +473,7 @@ export default function App() {
       importing.current ||
       importPreview ||
       registration ||
+      externalLink ||
       connectionSetup ||
       modal !== 'none'
     )
@@ -578,6 +616,35 @@ export default function App() {
             })
           }
         />
+      )}
+      {externalLink && (
+        <Dialog title="외부 URL 열기" onClose={() => setExternalLink(null)} locked={busy}>
+          <p>이 원문 링크를 기본 브라우저에서 열까요?</p>
+          <p className="external-link-url">{new URL(externalLink.link.href).href}</p>
+          <div className="modal-footer">
+            <button className="button" disabled={busy} onClick={() => setExternalLink(null)}>
+              외부 URL 취소
+            </button>
+            <button
+              className="button primary"
+              disabled={busy}
+              onClick={() =>
+                void act(async () => {
+                  const { link, root } = externalLink;
+                  await window.workspace.openExternalDocumentLink(
+                    link.documentId,
+                    link.id,
+                    link.revision,
+                    root,
+                  );
+                  setExternalLink(null);
+                })
+              }
+            >
+              브라우저에서 열기
+            </button>
+          </div>
+        </Dialog>
       )}
       <header className="titlebar">
         <div className="brand">
@@ -965,6 +1032,14 @@ export default function App() {
                     }
                   }}
                   onDirty={setDirty}
+                  links={workspace!.documentLinks.filter((link) => link.documentId === doc.id)}
+                  onLink={followLink}
+                />
+                <DocumentLinksPanel
+                  links={workspace!.documentLinks.filter((link) => link.documentId === doc.id)}
+                  busy={busy}
+                  onLink={followLink}
+                  onRefresh={() => void act(async () => update(await window.workspace.current()))}
                 />
                 {related.length > 0 && (
                   <div className="related-documents">
@@ -973,11 +1048,17 @@ export default function App() {
                       연결된 문서
                     </h3>
                     {related.map((r) => {
+                      const outgoing =
+                        r.fromId === doc.id ||
+                        doc.sections.some((section) => section.id === r.fromId);
+                      const targetId = outgoing ? r.toId : r.fromId;
                       const target = docs.find(
-                        (d) => d.id === (r.fromId === doc.id ? r.toId : r.fromId),
+                        (d) =>
+                          d.id === targetId ||
+                          d.sections.some((section) => section.id === targetId),
                       );
                       return (
-                        <button key={r.id} onClick={() => target && select(target.id)}>
+                        <button key={r.id} onClick={() => target && select(targetId)}>
                           <FileText size={14} />
                           <span>{target?.title || '연결 확인 필요'}</span>
                           <small>{r.type}</small>

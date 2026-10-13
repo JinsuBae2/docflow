@@ -141,9 +141,13 @@ export function ProjectGraph({
             source: from.id,
             target: to.id,
             type: 'smoothstep',
-            label: r.type,
+            label: r.origin === 'markdown' ? '원문 링크' : r.type,
             markerEnd: { type: MarkerType.ArrowClosed, color: '#526581' },
-            style: { stroke: '#526581', strokeWidth: 1.7 },
+            style: {
+              stroke: r.origin === 'markdown' ? '#087f8c' : '#526581',
+              strokeWidth: 1.7,
+              strokeDasharray: r.origin === 'markdown' ? '3 3' : undefined,
+            },
             labelStyle: { fill: '#344054', fontSize: 12, fontWeight: 600 },
             labelBgPadding: [8, 5] as [number, number],
             labelBgStyle: { fill: '#ffffff' },
@@ -222,7 +226,21 @@ export function ProjectGraph({
         </h3>
         {workspace.relations.length ? (
           workspace.relations.map((r) => (
-            <div className="relation-row" data-relation-id={r.id} key={r.id}>
+            <div
+              className="relation-row"
+              data-relation-id={r.id}
+              data-origin={r.origin || 'stored'}
+              key={r.id}
+            >
+              <small className="relation-origin">
+                {r.origin === 'markdown'
+                  ? '원문 링크'
+                  : r.origin === 'ai'
+                    ? 'AI 수락'
+                    : r.origin === 'manual'
+                      ? '직접 연결'
+                      : '저장된 관계'}
+              </small>
               <button onClick={() => onSelect(owner(r.fromId)?.id || '')}>
                 {owner(r.fromId)?.title || '연결 확인 필요'}
               </button>
@@ -252,28 +270,34 @@ export function ProjectGraph({
               ) : (
                 <span>{r.type}</span>
               )}
-              <button onClick={() => onSelect(owner(r.toId)?.id || '')}>
+              <button onClick={() => onSelect(r.toId)}>
                 {owner(r.toId)?.title || '연결 확인 필요'}
               </button>
-              <button
-                className="icon-button"
-                aria-label="관계 유형 수정"
-                data-tooltip="이 연결의 유형을 직접 수정합니다. 연결된 문서와 방향은 유지됩니다."
-                onClick={() => {
-                  setEditing(r.id);
-                  setRelationType(r.type);
-                }}
-              >
-                <Pencil size={13} />
-              </button>
-              <button
-                className="icon-button"
-                title="연결 해제"
-                aria-label="연결 해제"
-                onClick={() => onRemove(r.id)}
-              >
-                <Unlink size={13} />
-              </button>
+              {r.origin === 'markdown' ? (
+                <small>원문에서 수정</small>
+              ) : (
+                <>
+                  <button
+                    className="icon-button"
+                    aria-label="관계 유형 수정"
+                    data-tooltip="이 연결의 유형을 직접 수정합니다. 연결된 문서와 방향은 유지됩니다."
+                    onClick={() => {
+                      setEditing(r.id);
+                      setRelationType(r.type);
+                    }}
+                  >
+                    <Pencil size={13} />
+                  </button>
+                  <button
+                    className="icon-button"
+                    title="연결 해제"
+                    aria-label="연결 해제"
+                    onClick={() => onRemove(r.id)}
+                  >
+                    <Unlink size={13} />
+                  </button>
+                </>
+              )}
             </div>
           ))
         ) : (
