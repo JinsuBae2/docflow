@@ -2817,3 +2817,18 @@ button.document-link[data-link-status='missing-anchor'] {
     flex-shrink: 0;
   }
 }
+.analysis-content textarea {
+  width: 100%;
+  min-height: 80px;
+}
+.analysis-budgets {
+  display: flex;
+  gap: 16px;
+}
+.analysis-budgets label {
+  display: grid;
+  gap: 6px;
+}
+.analysis-content details p {
+  overflow-wrap: anywhere;
+}

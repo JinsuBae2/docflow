@@ -196,9 +196,11 @@ export interface ProposalDraft {
   sourceIds: Id[];
   reason: string;
   dependencyIds: Id[];
+  scopedSourceId?: Id | null;
   relation?: RelationDraft;
 }
 export interface Proposal extends ProposalDraft {
+  sourceRanges?: Array<{ id: Id; documentId: Id; start: number; end: number }>;
   id: Id;
   requestId: Id;
   snapshotId: Id;
@@ -222,8 +224,12 @@ export interface ContextSource {
   title: string;
   revision: Revision;
   content: string;
+  sectionId?: Id;
+  complete?: boolean;
+  range?: { start: number; end: number };
 }
 export interface ContextSnapshot {
+  budget?: AnalysisBudget;
   id: Id;
   requestId: Id;
   instruction: string;
@@ -310,6 +316,41 @@ export interface ContextInput {
   excludedIds: Id[];
   maxCharacters?: number;
 }
+export interface AnalysisBudget {
+  contextTokens: number;
+  outputTokens: number;
+  reserveTokens: number;
+  inputTokens: number;
+}
+export interface AnalysisInput extends ContextInput {
+  contextTokens?: number;
+  outputTokens?: number;
+}
+export interface AnalysisSummary {
+  warnings?: string[];
+  evidence?: Array<{
+    sourceId: Id;
+    documentId: Id;
+    sectionId?: Id;
+    title: string;
+    revision: Revision;
+    start?: number;
+    end?: number;
+    phase: 'documents' | 'links';
+  }>;
+  id: Id;
+  instruction: string;
+  provider: AiProviderId;
+  model: string;
+  status: 'ready' | 'running' | 'paused' | 'completed' | 'error';
+  budget: AnalysisBudget;
+  total: number;
+  completed: number;
+  cached: number;
+  documentIds: Id[];
+  excludedIds: Id[];
+  error?: string;
+}
 export interface RequestEvent {
   requestId: Id;
   event: AiEvent;
@@ -369,6 +410,9 @@ export interface WorkspaceApi {
   removeRelation(id: Id): Promise<Workspace>;
   updateRelation(id: Id, type: string): Promise<Workspace>;
   previewContext(input: ContextInput): Promise<ContextSnapshot>;
+  prepareAnalysis(input: AnalysisInput): Promise<AnalysisSummary>;
+  listAnalyses(): Promise<AnalysisSummary[]>;
+  startAnalysis(id: Id): Promise<Id>;
   startRequest(input: ContextInput, replacesId?: Id): Promise<Id>;
   cancelRequest(): Promise<void>;
   acceptProposal(id: Id): Promise<Workspace>;

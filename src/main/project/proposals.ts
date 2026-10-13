@@ -16,12 +16,20 @@ export class ProposalService {
         throw new Error('전달하지 않은 문서를 근거로 제안할 수 없습니다.');
       if (draft.kind === 'update') {
         const target = context.sources.find(
-          (s) => s.id === draft.targetId && s.documentId === draft.targetId,
+          (s) =>
+            s.documentId === draft.targetId &&
+            (draft.scopedSourceId
+              ? s.id === draft.scopedSourceId && !!s.range
+              : s.id === draft.targetId && s.complete !== false),
         );
         if (!target || target.revision !== draft.baseRevision)
           throw new Error('수정 대상 문서와 기준 버전이 요청 맥락과 일치하지 않습니다.');
-        const current = this.store.document(target.id);
-        for (const section of current.source === 'linked' ? [] : current.sections)
+        if (draft.scopedSourceId && !draft.sourceIds.includes(target.id))
+          throw new Error('발췌 수정의 근거 ID가 누락되었습니다.');
+        const current = this.store.document(target.documentId);
+        for (const section of current.source === 'linked' || draft.scopedSourceId
+          ? []
+          : current.sections)
           if (
             draft.replacement.includes(section.title) &&
             !draft.replacement.includes(`docflow-section:${section.id}`)
@@ -31,13 +39,15 @@ export class ProposalService {
             );
       } else if (draft.targetId !== null || draft.baseRevision !== null)
         throw new Error('새 문서와 결정 제안에는 수정 대상이 없어야 합니다.');
+      if (draft.kind !== 'update' && draft.scopedSourceId)
+        throw new Error('범위 수정은 update 제안에만 허용됩니다.');
       if (draft.kind === 'relation') {
         const relation = draft.relation;
         const from = context.sources.find(
-          (s) => s.id === relation.fromId && s.documentId === relation.fromId,
+          (s) => s.documentId === relation.fromId && draft.sourceIds.includes(s.id),
         );
         const to = context.sources.find(
-          (s) => s.id === relation.toId && s.documentId === relation.toId,
+          (s) => s.documentId === relation.toId && draft.sourceIds.includes(s.id),
         );
         if (
           relation.fromId === relation.toId ||
@@ -54,6 +64,9 @@ export class ProposalService {
         throw new Error('선행 제안을 찾을 수 없습니다.');
       return {
         ...draft,
+        sourceRanges: context.sources
+          .filter((s) => draft.sourceIds.includes(s.id) && s.range)
+          .map((s) => ({ id: s.id, documentId: s.documentId, ...s.range! })),
         id: randomUUID(),
         requestId: context.requestId,
         snapshotId,
@@ -62,15 +75,20 @@ export class ProposalService {
         replacesId,
       };
     });
-    for (const proposal of proposals) this.store.put('proposal', proposal);
-    this.store.put('batch', { id: context.requestId, proposalIds: proposals.map((p) => p.id) } as {
-      id: string;
+    this.store.transaction(() => {
+      for (const proposal of proposals) this.store.put('proposal', proposal);
+      this.store.put('batch', {
+        id: context.requestId,
+        proposalIds: proposals.map((p) => p.id),
+      } as {
+        id: string;
+      });
+      if (replacesId && proposals.length) {
+        const previous = this.store.get<Proposal>('proposal', replacesId);
+        if (previous && ['pending', 'stale'].includes(previous.status))
+          this.store.put('proposal', { ...previous, status: 'superseded' });
+      }
     });
-    if (replacesId && proposals.length) {
-      const previous = this.store.get<Proposal>('proposal', replacesId);
-      if (previous && ['pending', 'stale'].includes(previous.status))
-        this.store.put('proposal', { ...previous, status: 'superseded' });
-    }
     return proposals;
   }
   async accept(id: string) {
@@ -100,12 +118,23 @@ export class ProposalService {
         this.store.put('proposal', { ...proposal, status: 'stale' });
         throw new Error('문서가 변경되어 제안을 다시 검토해야 합니다.');
       }
-      await this.store.saveDocument(
-        proposal.targetId!,
-        proposal.replacement,
-        proposal.baseRevision!,
-        id,
-      );
+      if (proposal.scopedSourceId) {
+        const snapshot = this.store.get<ContextSnapshot>('context', proposal.snapshotId);
+        const source = snapshot?.sources.find(
+          (s) =>
+            s.id === proposal.scopedSourceId &&
+            s.documentId === proposal.targetId &&
+            s.revision === proposal.baseRevision,
+        );
+        if (!source?.range) throw new Error('발췌 수정의 원본 근거를 찾을 수 없습니다.');
+        this.store.saveExcerpt(source, proposal.replacement, id);
+      } else
+        await this.store.saveDocument(
+          proposal.targetId!,
+          proposal.replacement,
+          proposal.baseRevision!,
+          id,
+        );
     } else if (proposal.kind === 'decision')
       this.store.addDecision(proposal.replacement, proposal.sourceIds, id);
     else await this.store.createFromProposal(proposal);
