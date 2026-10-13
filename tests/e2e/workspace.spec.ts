@@ -151,9 +151,22 @@ test('onboards, previews local imports without losing drafts, saves the CLI mode
     expect((await page.evaluate(() => window.workspace.current()))!.documents).toHaveLength(5);
     const help = page.getByRole('button', { name: 'AI 연결 설정', exact: true });
     await expect(help).toBeEnabled();
+    await page.evaluate(() => {
+      const events: unknown[] = []; (window as any).tooltipEvents = events;
+      const label = (node: EventTarget | null) => node instanceof Element ? node.tagName + ':' + (node.getAttribute('aria-label') || node.className) : String(node);
+      for (const name of ['mouseover', 'mouseout', 'focusin', 'focusout', 'scroll', 'pointerdown']) document.addEventListener(name, event => {
+        events.push({ type: event.type, target: label(event.target), related: label((event as MouseEvent).relatedTarget), active: label(document.activeElement), tooltip: !!document.querySelector('[role=tooltip]') });
+        if (events.length > 100) events.shift();
+      }, true);
+    });
     await page.mouse.move(0, 0);
     await help.hover();
-    await expect(page.getByRole('tooltip')).toContainText('모델');
+    try { await expect(page.getByRole('tooltip')).toContainText('모델'); }
+    catch (error) {
+      await test.info().attach('tooltip-events', { body: JSON.stringify(await page.evaluate(() => (window as any).tooltipEvents)), contentType: 'application/json' });
+      await test.info().attach('tooltip-screen', { body: await page.screenshot(), contentType: 'image/png' });
+      throw error;
+    }
     await page.keyboard.press('Escape');
     await expect(page.getByRole('tooltip')).toBeHidden();
     await help.focus();
