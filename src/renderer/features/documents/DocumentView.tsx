@@ -9,11 +9,15 @@ export function Markdown({
   sections = [],
   links = [],
   onLink,
+  sourceDocumentId,
+  focusedFlowLine,
 }: {
   text: string;
   sections?: Document['sections'];
   links?: DocumentLink[];
   onLink?: (link: DocumentLink) => void;
+  sourceDocumentId?: string;
+  focusedFlowLine?: number;
 }) {
   const heading =
     (Tag: 'h1' | 'h2' | 'h3' | 'h4' | 'h5' | 'h6') =>
@@ -31,6 +35,20 @@ export function Markdown({
         h4: heading('h4'),
         h5: heading('h5'),
         h6: heading('h6'),
+        pre: ({ node, children }) => (
+          <pre
+            id={
+              sourceDocumentId
+                ? `flow-source-${sourceDocumentId}-${node?.position?.start.line}`
+                : undefined
+            }
+            className={
+              focusedFlowLine === node?.position?.start.line ? 'flow-source-highlight' : undefined
+            }
+          >
+            {children}
+          </pre>
+        ),
         a: ({ children, node }) => {
           const link = links.find(
             (link) =>
@@ -65,6 +83,7 @@ export function DocumentView({
   onDirty,
   links,
   onLink,
+  focusedFlowLine,
 }: {
   doc: Document;
   initialDraft?: EditorDraft;
@@ -73,6 +92,7 @@ export function DocumentView({
   onDirty: (dirty: boolean) => void;
   links?: DocumentLink[];
   onLink?: (link: DocumentLink) => void;
+  focusedFlowLine?: number;
 }) {
   const [editing, setEditing] = useState(!!initialDraft);
   const [draft, setDraft] = useState(initialDraft?.markdown ?? doc.markdown);
@@ -195,7 +215,14 @@ export function DocumentView({
         </div>
       ) : (
         <article className="prose">
-          <Markdown text={doc.markdown} sections={doc.sections} links={links} onLink={onLink} />
+          <Markdown
+            text={doc.markdown}
+            sections={doc.sections}
+            links={links}
+            onLink={onLink}
+            sourceDocumentId={doc.id}
+            focusedFlowLine={focusedFlowLine}
+          />
         </article>
       )}
     </div>

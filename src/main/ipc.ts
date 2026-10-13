@@ -111,6 +111,7 @@ const schemas: Record<string, z.ZodType> = {
   ]),
   createDocument: z.tuple([z.string().trim().min(1).max(200), documentTypeSchema]),
   saveDocument: z.tuple([id, str, id]),
+  saveFlow: z.tuple([id, id, z.string().min(1).max(50_000), z.string().max(4000)]),
   saveProject: z.tuple([
     z.string().trim().min(1).max(200),
     z.string().max(10000),
@@ -431,6 +432,10 @@ export function registerWorkspace(window: BrowserWindow) {
       case 'saveDocument':
         await requireStore().saveDocument(args[0], args[1], args[2]);
         return requireStore().workspace();
+      case 'saveFlow':
+        if (requireStore().root !== args[3])
+          throw new Error('프로젝트가 바뀌어 흐름 편집을 적용하지 않았습니다.');
+        return requireStore().saveFlow(args[0], args[1], args[2]);
       case 'saveProject': {
         const s = requireStore();
         s.updateProject(args[0], args[1], args[2]);

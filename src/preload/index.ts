@@ -28,6 +28,7 @@ const api: WorkspaceApi = {
   current: () => call('current'),
   createDocument: (title, type) => call('createDocument', title, type),
   saveDocument: (id, markdown, revision) => call('saveDocument', id, markdown, revision),
+  saveFlow: (...args) => call('saveFlow', ...args),
   previewImport: () => call('previewImport'),
   previewDroppedDocuments: (files) => call('previewDroppedDocuments', files),
   confirmImport: (id) => call('confirmImport', id),

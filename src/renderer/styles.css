@@ -2689,3 +2689,131 @@ button.document-link[data-link-status='missing-anchor'] {
 .relation-row > .relation-source-link {
   margin-left: auto;
 }
+
+.project-flows-body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+.flow-inventory {
+  flex: 0 0 220px;
+  padding: 16px;
+  border-right: 1px solid var(--border);
+  overflow: auto;
+}
+.flow-inventory > input {
+  width: 100%;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+.flow-inventory > small {
+  display: block;
+  margin: 12px 0;
+  color: var(--muted);
+}
+.flow-inventory-item {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  width: 100%;
+  padding: 12px;
+  margin-bottom: 8px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow-wrap: anywhere;
+}
+.flow-inventory-item.active {
+  background: #edf4ff;
+  border-color: #155eef;
+}
+.flow-inventory-item small,
+.flow-inventory-item span,
+.flow-issue,
+.flow-readonly-hint {
+  color: var(--muted);
+  font-size: 11px;
+}
+.flow-detail {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: auto;
+}
+.flow-detail .diagram-toolbar {
+  padding: 14px 18px;
+  flex-wrap: wrap;
+}
+.flow-detail .diagram-toolbar small {
+  display: block;
+  margin-top: 5px;
+  overflow-wrap: anywhere;
+}
+.flow-detail .diagram-scroll {
+  min-height: 280px;
+}
+.flow-readonly-hint {
+  padding: 0 18px;
+}
+.flow-source-code {
+  padding: 14px 18px;
+}
+.flow-source-code pre,
+.flow-edit-fields pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  max-height: 280px;
+  overflow: auto;
+  padding: 12px;
+  background: #f3f5f9;
+}
+.flow-source-highlight {
+  outline: 2px solid #155eef;
+  outline-offset: 4px;
+}
+.simple-flow-editor {
+  padding: 14px;
+}
+.flow-edit-canvas {
+  height: 330px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.flow-edit-fields {
+  padding: 12px 0;
+}
+.flow-node-field,
+.flow-edge-field,
+.flow-connect-fields {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin: 10px 0;
+  flex-wrap: wrap;
+}
+.flow-node-field label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.flow-edit-fields input,
+.flow-edit-fields select {
+  padding: 7px;
+  max-width: 220px;
+}
+@media (max-width: 1000px) {
+  .project-flows-body {
+    flex-direction: column;
+    overflow: auto;
+  }
+  .flow-inventory {
+    flex-basis: auto;
+    max-height: 220px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .flow-detail {
+    flex-shrink: 0;
+  }
+}
