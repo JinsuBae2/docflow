@@ -156,6 +156,7 @@ export function registerWorkspace(window: BrowserWindow) {
         if (controller) throw new Error('이전 AI 요청이 진행 중입니다.');
         const s = requireStore(); const input = args[0] as ContextInput;
         const snapshot = await buildContext(input, s, args[1]); const requestId = snapshot.requestId;
+        if (s.workspace().drafts?.some(draft => snapshot.sources.some(source => source.documentId === draft.documentId))) throw new Error('요청 맥락에 미저장 초안이 있습니다. 초안을 저장하거나 해당 문서를 제외해 주세요.');
         const preferences = readSettings();
         controller = new AbortController(); const currentController = controller; provider = makeProvider(preferences.provider); const client = provider;
         let usageRecord: RequestUsage = { id: requestId, provider: preferences.provider, model: preferences.model || null, createdAt: new Date().toISOString(), status: 'running', usage: normalizeCodexUsage(undefined) };
