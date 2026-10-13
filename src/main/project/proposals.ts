@@ -21,7 +21,7 @@ export class ProposalService {
         if (!target || target.revision !== draft.baseRevision)
           throw new Error('수정 대상 문서와 기준 버전이 요청 맥락과 일치하지 않습니다.');
         const current = this.store.document(target.id);
-        for (const section of current.sections)
+        for (const section of current.source === 'linked' ? [] : current.sections)
           if (
             draft.replacement.includes(section.title) &&
             !draft.replacement.includes(`docflow-section:${section.id}`)

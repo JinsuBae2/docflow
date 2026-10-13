@@ -2586,3 +2586,35 @@ select {
   background: #1763ef;
   border-radius: 4px;
 }
+
+.registration-tools {
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.registration-file {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.modal .registration-file > input {
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  margin-top: 4px;
+}
+.registration-file span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.registration-file small {
+  display: block;
+  color: var(--muted);
+  margin-top: 4px;
+}
+.linked-document-path {
+  overflow-wrap: anywhere;
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0 0 12px;
+}

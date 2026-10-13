@@ -42,9 +42,11 @@ import type {
   ImportPreview,
   ProjectEntry,
   EditorDraft,
+  DocumentRegistrationPreview,
 } from '../shared/contracts';
 import { ConnectionSetup } from './components/ConnectionSetup';
 import { ImportDialog } from './components/ImportDialog';
+import { DocumentRegistrationDialog } from './components/DocumentRegistrationDialog';
 import { UsagePanel } from './components/UsagePanel';
 import { ProjectSections } from './components/ProjectSections';
 import { Tooltip } from './components/Tooltip';
@@ -70,6 +72,7 @@ export default function App() {
   });
   const [connectionSetup, setConnectionSetup] = useState(false);
   const [importPreview, setImportPreview] = useState<ImportPreview | null>(null);
+  const [registration, setRegistration] = useState<DocumentRegistrationPreview | null>(null);
   const [dragging, setDragging] = useState(false);
   const importing = useRef(false);
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -131,6 +134,7 @@ export default function App() {
       setSearch('');
       setContext(null);
       setUsageOpen(false);
+      setRegistration(null);
     }
     setWorkspace(next);
     void window.workspace
@@ -138,11 +142,19 @@ export default function App() {
       .then(setProjects)
       .catch((e) => setError(e.message));
   };
-  const changeProject = async (open: () => Promise<Workspace | null>, selected?: string) => {
+  const changeProject = async (
+    open: () => Promise<Workspace | null>,
+    selected?: string,
+    discover = false,
+  ) => {
     await writes.current;
     const next = await open();
     if (next) {
       update(next);
+      if (discover) {
+        const preview = await window.workspace.previewProjectDocuments();
+        if (preview.files.length || preview.warnings.length) setRegistration(preview);
+      }
       if (selected) {
         setSelectedId(selected);
         setView('document');
@@ -419,10 +431,28 @@ export default function App() {
     setModal('settings');
   };
   const importFiles = (files?: File[]) => {
-    if (busy || importing.current || importPreview || connectionSetup || modal !== 'none') return;
+    if (
+      busy ||
+      importing.current ||
+      importPreview ||
+      registration ||
+      connectionSetup ||
+      modal !== 'none'
+    )
+      return;
     importing.current = true;
     void act(async () => {
       try {
+        if (files) {
+          await writes.current;
+          const project = await window.workspace.openDroppedProject(files);
+          if (project) {
+            update(project);
+            const preview = await window.workspace.previewProjectDocuments();
+            if (preview.files.length || preview.warnings.length) setRegistration(preview);
+            return;
+          }
+        }
         if (
           files &&
           (!files.length ||
@@ -456,6 +486,13 @@ export default function App() {
       await window.workspace.cancelImport();
       setImportPreview(null);
     });
+  const chooseDocuments = (kind?: 'files' | 'folder') =>
+    void act(async () => {
+      const preview = kind
+        ? await window.workspace.previewDocumentPaths(kind)
+        : await window.workspace.previewProjectDocuments();
+      if (preview) setRegistration(preview);
+    });
   const closeConnection = () =>
     void act(async () => {
       setPreferences(await window.workspace.savePreferences({ onboardingDone: true }));
@@ -483,7 +520,9 @@ export default function App() {
     >
       <Tooltip />
       {dragging && (
-        <div className="drop-overlay">Markdown 파일을 놓아 가져오기 내용을 확인하세요</div>
+        <div className="drop-overlay">
+          프로젝트 폴더 또는 Markdown 파일을 놓아 문서를 확인하세요
+        </div>
       )}
       {connectionSetup && (
         <ConnectionSetup
@@ -519,6 +558,27 @@ export default function App() {
           }
         />
       )}
+      {registration && (
+        <DocumentRegistrationDialog
+          key={registration.id}
+          preview={registration}
+          busy={busy}
+          onChoose={chooseDocuments}
+          onCancel={() =>
+            void act(async () => {
+              await window.workspace.cancelDocumentRegistration(registration.id);
+              setRegistration(null);
+            })
+          }
+          onConfirm={(paths) =>
+            void act(async () => {
+              update(await window.workspace.confirmDocumentRegistration(registration.id, paths));
+              setRegistration(null);
+              setNotice('원본 문서를 연결했습니다. 등록으로 파일 본문은 변경하지 않았습니다.');
+            })
+          }
+        />
+      )}
       <header className="titlebar">
         <div className="brand">
           <Workflow size={20} strokeWidth={2} />
@@ -532,7 +592,9 @@ export default function App() {
             title="프로젝트 열기"
             aria-label="프로젝트 열기"
             disabled={busy || running}
-            onClick={() => void act(() => changeProject(() => window.workspace.openProject()))}
+            onClick={() =>
+              void act(() => changeProject(() => window.workspace.openProject(), undefined, true))
+            }
           >
             <FolderOpen size={16} />
           </button>
@@ -634,6 +696,17 @@ export default function App() {
                 Markdown 가져오기<small>여러 파일 선택 또는 끌어놓기</small>
               </span>
             </button>
+            <button
+              className="import-command"
+              aria-label="프로젝트 원본 문서 추가"
+              disabled={busy || !workspace}
+              onClick={() => chooseDocuments()}
+            >
+              <FolderOpen size={16} />
+              <span>
+                원본 문서 추가<small>docs 탐색 · 파일 또는 폴더 선택</small>
+              </span>
+            </button>
             <ProjectSections
               entries={projects}
               activeRoot={workspace?.root}
@@ -690,7 +763,9 @@ export default function App() {
                 className="sidebar-command"
                 disabled={busy || running}
                 onClick={() =>
-                  void act(() => changeProject(() => window.workspace.createProject()))
+                  void act(() =>
+                    changeProject(() => window.workspace.createProject(), undefined, true),
+                  )
                 }
               >
                 <FolderPlus size={15} />새 프로젝트
@@ -788,7 +863,9 @@ export default function App() {
                   className="button primary"
                   disabled={busy}
                   onClick={() =>
-                    void act(async () => update(await window.workspace.createProject()))
+                    void act(() =>
+                      changeProject(() => window.workspace.createProject(), undefined, true),
+                    )
                   }
                 >
                   <FolderPlus size={16} />
@@ -797,7 +874,11 @@ export default function App() {
                 <button
                   className="button"
                   disabled={busy}
-                  onClick={() => void act(async () => update(await window.workspace.openProject()))}
+                  onClick={() =>
+                    void act(() =>
+                      changeProject(() => window.workspace.openProject(), undefined, true),
+                    )
+                  }
                 >
                   <FolderOpen size={16} />
                   폴더 열기

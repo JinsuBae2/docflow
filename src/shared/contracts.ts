@@ -99,6 +99,20 @@ export interface ImportPreview {
   id: string;
   files: ImportFilePreview[];
 }
+export interface DocumentCandidate {
+  path: string;
+  bytes: number;
+  revision?: Revision;
+  reason?: string;
+}
+export interface DocumentDiscovery {
+  files: DocumentCandidate[];
+  warnings: string[];
+}
+export interface DocumentRegistrationPreview extends DocumentDiscovery {
+  id: Id;
+  root: string;
+}
 export type DocumentType = 'overview' | 'prd' | 'feature' | 'flow' | 'design' | 'note';
 export interface Section {
   id: Id;
@@ -119,6 +133,7 @@ export interface Document {
   markdown: string;
   sections: Section[];
   needsReconnect: boolean;
+  source?: 'linked';
 }
 export interface Project {
   id: Id;
@@ -262,6 +277,11 @@ export interface WorkspaceApi {
   usageSummary(): Promise<UsageSummary>;
   usageLimits(provider?: AiProviderId): Promise<UsageLimits>;
   openProject(): Promise<Workspace | null>;
+  openDroppedProject(files: File[]): Promise<Workspace | null>;
+  previewProjectDocuments(): Promise<DocumentRegistrationPreview>;
+  previewDocumentPaths(kind: 'files' | 'folder'): Promise<DocumentRegistrationPreview | null>;
+  confirmDocumentRegistration(id: Id, paths: string[]): Promise<Workspace>;
+  cancelDocumentRegistration(id: Id): Promise<void>;
   createProject(): Promise<Workspace | null>;
   openExample(): Promise<Workspace>;
   current(): Promise<Workspace | null>;

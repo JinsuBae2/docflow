@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import type { WorkspaceApi, RequestEvent } from '../shared/contracts';
 const call = (method: string, ...args: unknown[]) =>
   ipcRenderer.invoke('workspace:call', method, args);
@@ -14,6 +14,12 @@ const api: WorkspaceApi = {
   saveDraft: (draft, root) => call('saveDraft', draft, root),
   discardDraft: (id, root) => call('discardDraft', id, root),
   openProject: () => call('openProject'),
+  openDroppedProject: (files) =>
+    call('openDroppedProject', files.map((file) => webUtils.getPathForFile(file)).filter(Boolean)),
+  previewProjectDocuments: () => call('previewProjectDocuments'),
+  previewDocumentPaths: (kind) => call('previewDocumentPaths', kind),
+  confirmDocumentRegistration: (id, paths) => call('confirmDocumentRegistration', id, paths),
+  cancelDocumentRegistration: (id) => call('cancelDocumentRegistration', id),
   createProject: () => call('createProject'),
   openExample: () => call('openExample'),
   current: () => call('current'),
