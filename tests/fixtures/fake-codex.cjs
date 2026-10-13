@@ -17,5 +17,5 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     send({ method: 'item/completed', params: { threadId: 'test-thread', item } });
     send({ method: 'item/completed', params: { threadId: 'test-thread', item } });
     send({ method: 'turn/completed', params: { threadId: 'test-thread', turn: { id: 'test-turn', status: 'completed' } } });
-  }, 50);
+  }, Number(process.env.DOCFLOW_TEST_DELAY_MS) || 50);
 });
