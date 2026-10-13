@@ -137,3 +137,6 @@
 .drop-overlay { position: absolute; inset: 60px 10px 10px; z-index: 500; display: grid; place-items: center; border: 3px dashed #155eef; background: #eaf1fff0; color: #004bd6; font-size: 22px; text-align: center; padding: 30px; pointer-events: none; }
 @media (max-width: 1200px) { .document-surface { padding-inline: 28px; } .document-context-bar { padding-inline: 28px; } .prose { font-size: 14px; } .prose h1 { font-size: 28px; } .prose h2 { font-size: 18px; } }
 @media (max-width: 950px) { .workspace-layout { grid-template-columns: 180px minmax(0, 1fr) 260px; } .workspace-layout.no-sidebar { grid-template-columns: minmax(0, 1fr) 260px; } .workspace-layout.no-assistant { grid-template-columns: 180px minmax(0, 1fr); } .workspace-layout.no-sidebar.no-assistant { grid-template-columns: minmax(0, 1fr); } .view-tabs button { width: 32px; } .document-surface { padding-inline: 22px; } .document-context-bar { padding-inline: 22px; } .document-context-bar .text-button { font-size: 11px; } .start-workspace { padding: 32px 24px; } .start-actions { flex-wrap: wrap; } }
+.provider-field { margin-top: 0; }
+.model-field input { display: block; width: 100%; padding: 10px; margin-top: 8px; font-size: 13px; font-weight: 400; }
+.connection-key-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }

@@ -150,6 +150,8 @@ test('onboards, previews local imports without losing drafts, saves the CLI mode
     await expect(editor).toHaveValue(draft);
     expect((await page.evaluate(() => window.workspace.current()))!.documents).toHaveLength(5);
     const help = page.getByRole('button', { name: 'AI 연결 설정', exact: true });
+    await expect(help).toBeEnabled();
+    await page.mouse.move(0, 0);
     await help.hover();
     await expect(page.getByRole('tooltip')).toContainText('모델');
     await page.keyboard.press('Escape');
@@ -170,5 +172,60 @@ test('onboards, previews local imports without losing drafts, saves the CLI mode
     await page.getByRole('button', { name: 'AI 연결 설정', exact: true }).click();
     await expect(page.getByLabel('AI 모델')).toHaveValue('test-fast');
     await expect(page.getByRole('heading', { name: '프로젝트 개요', exact: true })).toBeVisible();
+  } finally { await closeTestApp(app); await rm(root, { recursive: true, force: true }); }
+});
+
+test('selects Claude, preserves provider models and routes validated proposals without exposing credentials', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'docflow-claude-e2e-'));
+  const launch = async () => {
+    const app = await electron.launch({ args: [resolve('out/main/index.js')], env: { ...process.env, ANTHROPIC_API_KEY: '', NODE_ENV: 'test', DOCFLOW_DATA_DIR: root, DOCFLOW_TEST_NODE: process.execPath, DOCFLOW_TEST_FIXTURE: resolve('tests/fixtures/fake-codex.cjs') } });
+    await app.evaluate(() => {
+      process.env.ANTHROPIC_API_KEY = 'fixture-not-a-real-key';
+      globalThis.fetch = (async (url: string | URL | Request, options?: RequestInit) => {
+        const target = String(url);
+        if (!target.startsWith('https://api.anthropic.com/v1/')) throw new Error('Unexpected endpoint');
+        if (target.includes('/models')) return new Response(JSON.stringify({ data: [{ id: 'test-claude', display_name: 'Test Claude' }], has_more: false }));
+        const body = JSON.parse(String(options?.body)); if (body.tools || body.model !== 'test-claude') throw new Error('Invalid Claude request');
+        return new Response(JSON.stringify({ stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify({ message: 'Claude 제안 검토', proposals: [{ kind: 'decision', title: 'Claude 테스트 결정', documentType: 'note', targetId: null, baseRevision: null, replacement: '검토 후 결정한다.', sourceIds: [], reason: '테스트 근거', dependencyIds: [] }] }) }] }));
+      }) as typeof fetch;
+    });
+    return app;
+  };
+  let app = await launch();
+  try {
+    let page = await app.firstWindow();
+    const guide = page.getByRole('dialog');
+    await expect(guide.getByRole('button', { name: '설정 저장' })).toBeEnabled();
+    await guide.getByLabel('AI 모델').selectOption('test-fast');
+    await guide.getByLabel('AI 제공자').selectOption('claude');
+    await expect(page.getByRole('dialog', { name: 'Claude 연결 설정' })).toBeVisible();
+    await expect(guide.getByRole('status')).toContainText('Anthropic API 연결됨');
+    await expect(guide.getByLabel('Claude API 키')).toHaveValue('');
+    await guide.getByLabel('AI 모델').selectOption('test-claude');
+    await guide.getByRole('button', { name: '설정 저장' }).click();
+    await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
+    const before = await page.evaluate(() => window.workspace.current());
+    await page.getByRole('textbox', { name: 'AI에게 요청' }).fill('의사결정 제안');
+    await page.getByRole('button', { name: '요청 보내기' }).click();
+    await expect(page.getByText('Claude 테스트 결정', { exact: true })).toBeVisible();
+    const pending = await page.evaluate(() => window.workspace.current());
+    expect(pending!.documents).toEqual(before!.documents); expect(pending!.decisions).toEqual(before!.decisions);
+    await page.getByRole('button', { name: '제안 수락' }).click();
+    expect((await page.evaluate(() => window.workspace.current()))!.decisions).toHaveLength(before!.decisions.length + 1);
+    expect(JSON.stringify(await page.evaluate(() => window.workspace.preferences()))).not.toContain('fixture-not-a-real-key');
+    await app.close(); app = await launch(); page = await app.firstWindow();
+    await page.getByRole('button', { name: 'AI 연결 설정', exact: true }).click();
+    await expect(page.getByLabel('AI 제공자')).toHaveValue('claude');
+    await expect(page.getByLabel('AI 모델')).toHaveValue('test-claude');
+    await expect(page.getByRole('button', { name: '설정 저장' })).toBeEnabled();
+    await page.getByLabel('AI 제공자').selectOption('codex');
+    await expect(page.getByLabel('AI 모델')).toHaveValue('');
+    await page.getByLabel('AI 모델').selectOption('test-fast');
+    await page.getByRole('button', { name: '설정 저장' }).click();
+    expect((await page.evaluate(() => window.workspace.preferences())).models.claude).toBe('test-claude');
+    await page.getByRole('button', { name: 'AI 연결 설정', exact: true }).click();
+    await page.getByLabel('AI 제공자').selectOption('claude');
+    await expect(page.getByLabel('AI 모델')).toHaveValue('test-claude');
+    await page.screenshot({ path: 'outputs/claude-connection.png', fullPage: true });
   } finally { await closeTestApp(app); await rm(root, { recursive: true, force: true }); }
 });

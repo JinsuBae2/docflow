@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, safeStorage } from 'electron';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, lstatSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -9,30 +9,36 @@ import { buildContext } from './project/context';
 import { exampleDocuments } from './project/examples';
 import { prepareImports } from './project/imports';
 import { CodexProvider } from './ai/codex-provider';
-import type { ContextInput, AiEvent, Message, Preferences, ImportInput } from '../shared/contracts';
+import { ClaudeProvider } from './ai/claude-provider';
+import { CredentialStore } from './ai/credential-store';
+import { normalizePreferences, updatePreferences } from './ai/settings';
+import type { AiProvider } from './ai/provider';
+import type { ContextInput, AiEvent, Message, Preferences, ImportInput, AiProviderId } from '../shared/contracts';
 import { documentTypeSchema } from '../shared/proposal-schema';
 const str = z.string().max(2_000_000).refine(text => Buffer.byteLength(text, 'utf8') <= 2_000_000, '2MB 이하의 Markdown만 저장할 수 있습니다.'); const id = z.string().min(1).max(250);
 const contextSchema = z.object({ instruction: z.string().min(1).max(10000), selectedIds: z.array(id).max(300), excludedIds: z.array(id).max(300), maxCharacters: z.number().int().min(1000).max(60000).optional() }).strict();
 const schemas: Record<string, z.ZodType> = {
   current: z.tuple([]), openProject: z.tuple([]), createProject: z.tuple([]), openExample: z.tuple([]), exportDocuments: z.tuple([]),
   previewImport: z.tuple([]), previewDroppedDocuments: z.tuple([z.array(z.object({ name: z.string().max(500), text: z.string().max(2_000_000) }).strict()).min(1).max(30)]), confirmImport: z.tuple([id]), cancelImport: z.tuple([]),
-  listModels: z.tuple([]), preferences: z.tuple([]), savePreferences: z.tuple([z.object({ model: z.string().max(150).optional(), onboardingDone: z.boolean().optional() }).strict()]),
+  listModels: z.tuple([z.enum(['codex', 'claude']).optional()]), saveClaudeKey: z.tuple([z.string().max(500).refine(key => !key || /^[!-~]+$/.test(key), 'API 키 형식을 확인해 주세요.')]), preferences: z.tuple([]), savePreferences: z.tuple([z.object({ provider: z.enum(['codex', 'claude']).optional(), model: z.string().max(150).optional(), onboardingDone: z.boolean().optional() }).strict()]),
   createDocument: z.tuple([z.string().trim().min(1).max(200), documentTypeSchema]), saveDocument: z.tuple([id, str, id]),
   saveProject: z.tuple([z.string().trim().min(1).max(200), z.string().max(10000), z.string().max(10000)]),
   connectDocuments: z.tuple([id, id, z.string().trim().min(1).max(100)]), removeRelation: z.tuple([id]),
   previewContext: z.tuple([contextSchema]), startRequest: z.tuple([contextSchema, id.optional()]), cancelRequest: z.tuple([]),
-  acceptProposal: z.tuple([id]), rejectProposal: z.tuple([id, z.string().max(3000).optional()]), providerStatus: z.tuple([])
+  acceptProposal: z.tuple([id]), rejectProposal: z.tuple([id, z.string().max(3000).optional()]), providerStatus: z.tuple([z.enum(['codex', 'claude']).optional()])
 };
 export function registerWorkspace(window: BrowserWindow) {
   const dataRoot = process.env.DOCFLOW_DATA_DIR || app.getPath('userData'); mkdirSync(dataRoot, { recursive: true });
   const settingsFile = join(dataRoot, 'settings.json');
-  const readSettings = (): { root?: string } & Preferences => { try { return { model: '', onboardingDone: false, ...JSON.parse(readFileSync(settingsFile, 'utf8')) }; } catch { return { model: '', onboardingDone: false }; } };
+  const readSettings = (): { root?: string } & Preferences => { try { const saved = JSON.parse(readFileSync(settingsFile, 'utf8')); return { root: saved.root, ...normalizePreferences(saved) }; } catch { return normalizePreferences(); } };
+  const credentials = new CredentialStore(join(dataRoot, 'claude-key.enc'), safeStorage);
   const saveSettings = (patch: object) => writeFileSync(settingsFile, JSON.stringify({ ...readSettings(), ...patch }), { mode: 0o600 });
   let staged: { id: string; root: string; files: ReturnType<typeof prepareImports> } | undefined;
   const stage = (files: ImportInput[]) => { const s = requireStore(); staged = { id: randomUUID(), root: s.root, files: prepareImports(files) }; return { id: staged.id, files: staged.files.map(({ text: _text, ...preview }) => preview) }; };
-  let store: ProjectStore | undefined; let controller: AbortController | undefined; let provider: CodexProvider | undefined;
+  let store: ProjectStore | undefined; let controller: AbortController | undefined; let provider: AiProvider | undefined;
   const requireStore = () => { if (!store) throw new Error('프로젝트를 먼저 열어 주세요.'); return store; };
-  const makeProvider = () => !app.isPackaged && process.env.NODE_ENV === 'test' && process.env.DOCFLOW_TEST_FIXTURE
+  const makeProvider = (selected: AiProviderId = readSettings().provider): AiProvider => selected === 'claude'
+    ? new ClaudeProvider(() => credentials.get() || process.env.ANTHROPIC_API_KEY || '') : !app.isPackaged && process.env.NODE_ENV === 'test' && process.env.DOCFLOW_TEST_FIXTURE
     ? new CodexProvider(process.env.DOCFLOW_TEST_NODE, [process.env.DOCFLOW_TEST_FIXTURE]) : new CodexProvider();
   const switchProject = async (root: string) => {
     if (controller) throw new Error('AI 요청을 취소하거나 완료한 뒤 프로젝트를 바꿔 주세요.');
@@ -46,13 +52,18 @@ export function registerWorkspace(window: BrowserWindow) {
     const args = schemas[method].parse(rawArgs) as any[]; await ready;
     switch (method) {
       case 'current': return store?.workspace() || null;
-      case 'preferences': { const { model, onboardingDone } = readSettings(); return { model, onboardingDone }; }
+      case 'preferences': return normalizePreferences(readSettings());
+      case 'saveClaudeKey': {
+        if (controller) throw new Error('AI 요청이 끝난 뒤 키를 변경해 주세요.');
+        credentials.set(args[0]); return;
+      }
       case 'savePreferences': {
         if (controller) throw new Error('AI 요청이 끝난 뒤 모델을 변경해 주세요.');
-        if (args[0].model) { const client = makeProvider(); try { if (!(await client.listModels()).some(m => m.model === args[0].model)) throw new Error('사용할 수 없는 모델입니다.'); } finally { await client.close(); } }
-        saveSettings(args[0]); const { model, onboardingDone } = readSettings(); return { model, onboardingDone };
+        const next = updatePreferences(readSettings(), args[0]);
+        if (next.model && (args[0].model !== undefined || args[0].provider !== undefined)) { const client = makeProvider(next.provider); try { if (!(await client.listModels()).some(m => m.model === next.model)) throw new Error('사용할 수 없는 모델입니다.'); } finally { await client.close(); } }
+        saveSettings(next); return next;
       }
-      case 'listModels': { const client = makeProvider(); try { return await client.listModels(); } finally { await client.close(); } }
+      case 'listModels': { const client = makeProvider(args[0]); try { return await client.listModels(); } finally { await client.close(); } }
       case 'cancelImport': staged = undefined; return;
       case 'previewDroppedDocuments': return stage(args[0]);
       case 'previewImport': {
@@ -97,7 +108,7 @@ export function registerWorkspace(window: BrowserWindow) {
       }
       case 'previewContext': return buildContext(args[0], requireStore());
       case 'providerStatus': {
-        const client = makeProvider(); try { const status = await client.getStatus(); if (process.env.NODE_ENV === 'test' && process.env.DOCFLOW_TEST_FIXTURE) status.detail = '테스트 연결'; return status; } finally { await client.close(); }
+        const client = makeProvider(args[0]); try { const status = await client.getStatus(); if (status.label === 'Codex' && process.env.NODE_ENV === 'test' && process.env.DOCFLOW_TEST_FIXTURE) status.detail = '테스트 연결'; return status; } finally { await client.close(); }
       }
       case 'cancelRequest': controller?.abort(); return;
       case 'acceptProposal': return new ProposalService(requireStore()).accept(args[0]);
