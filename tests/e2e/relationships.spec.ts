@@ -48,6 +48,7 @@ test('previews AI relationship evidence, applies only reviewed links and edits c
     await page.mouse.move(1100, 70); await page.screenshot({ path: 'outputs/ai-relationship-review.png', fullPage: true });
     await page.getByRole('button', { name: '제안 수락', exact: true }).first().click();
     await page.getByRole('button', { name: '제안 거절', exact: true }).first().click();
+    await page.getByRole('button', { name: '보내기', exact: true }).click();
     await expect(page.getByText('거절됨', { exact: true }).first()).toBeVisible();
     const accepted = (await page.evaluate(() => window.workspace.current()))!;
     expect(accepted.relations).toHaveLength(before.relations.length + 1);

@@ -24,6 +24,7 @@ export default function App() {
   const [modal, setModal] = useState<'none' | 'new' | 'settings' | 'context' | 'relation'>('none'); const [context, setContext] = useState<ContextSnapshot | null>(null);
   const [excluded, setExcluded] = useState<string[]>([]); const [included, setIncluded] = useState<string[]>([]); const [title, setTitle] = useState(''); const [docType, setDocType] = useState<DocumentType>('note');
   const [projectName, setProjectName] = useState(''); const [goal, setGoal] = useState(''); const [constraints, setConstraints] = useState(''); const [relationTarget, setRelationTarget] = useState(''); const [relationType, setRelationType] = useState('참고');
+  const feedbackRequest = useRef(false);
   const promptRef = useRef<HTMLTextAreaElement>(null); const chatEnd = useRef<HTMLDivElement>(null); const requestIdRef = useRef('');
   const docs = workspace?.documents || []; const doc = docs.find(d => d.id === selectedId) || docs[0]; const section = doc?.sections.find(s => s.id === sectionId);
   const pending = workspace?.proposals.filter(p => p.status === 'pending' || p.status === 'stale').length || 0;
@@ -56,11 +57,25 @@ export default function App() {
   const request = async (instruction = prompt, replacesId?: string) => {
     if (!instruction.trim() || running) return;
     if (dirty) { setError('작성 중인 문서를 저장한 뒤 AI에 요청해 주세요.'); return; }
-    setError(''); setRunning(true); setProgress('요청 맥락을 준비하고 있습니다.'); setPanelTab('chat'); setAssistant(true);
+    feedbackRequest.current = false; setError(''); setRunning(true); setProgress('요청 맥락을 준비하고 있습니다.'); setPanelTab('chat'); setAssistant(true);
     try {
       const input = contextInput(section ? instruction + '\n현재 집중 섹션: ' + section.title : instruction);
       requestIdRef.current = await window.workspace.startRequest(input, replacesId); setPrompt(''); update(await window.workspace.current());
     } catch (e) { setError((e as Error).message); setRunning(false); }
+  };
+  const rejection = async (proposalId: string, reason: string, feedbackId: string, retry = false): Promise<boolean> => {
+    if (!workspace || running || busy) return false;
+    if (reason.trim() && dirty) { setError('작성 중인 문서를 저장한 뒤 AI에 요청해 주세요.'); return false; }
+    setError(''); setBusy(true); setRunning(true); feedbackRequest.current = true;
+    try {
+      const input = contextInput('거절 이유 검토');
+      const requestId = retry ? await window.workspace.retryRejection(feedbackId, input, workspace.root) : await window.workspace.sendRejection(proposalId, reason, feedbackId, input, workspace.root);
+      requestIdRef.current = requestId || '';
+      if (requestId) { setPanelTab('chat'); setAssistant(true); setProgress('거절 이유를 검토하고 있습니다.'); }
+      else { setRunning(false); feedbackRequest.current = false; }
+      update(await window.workspace.current()); return true;
+    } catch (e) { setError((e as Error).message); setRunning(false); feedbackRequest.current = false; update(await window.workspace.current()); return false; }
+    finally { setBusy(false); }
   };
   const preparePrompt = (text: string) => { setPrompt(text); setPanelTab('chat'); setAssistant(true); setTimeout(() => promptRef.current?.focus(), 50); };
   useEffect(() => {
@@ -76,7 +91,8 @@ export default function App() {
         setRunning(false); setProgress(''); requestIdRef.current = '';
         if (event.type === 'error') setError(event.message);
         if (event.type === 'cancelled') setNotice('요청을 취소했습니다. 문서는 변경하지 않았습니다.');
-        if (event.type === 'result' && event.response.proposals.length) setPanelTab('proposals');
+        if (event.type === 'result' && event.response.proposals.length && !feedbackRequest.current) setPanelTab('proposals');
+        feedbackRequest.current = false;
         void window.workspace.current().then(update).catch(e => setError(e.message));
       }
     });
@@ -138,7 +154,7 @@ export default function App() {
         <footer className="workspace-status"><span>{workspace ? `${docs.length}개 문서 · ${workspace.relations.length}개 연결` : 'Docflow 0.1'}</span><span>{busy ? '저장 중' : running ? 'AI 작업 중' : '로컬 작업 공간'}</span></footer>
       </main>
       {assistant && <aside className="assistant-panel"><div className="assistant-heading"><div><Sparkles size={17} /><strong>프로젝트 어시스턴트</strong></div><span className={'connection-indicator ' + (status.connected ? 'connected' : '')} title={status.detail} /></div><div className="assistant-tabs"><button className={panelTab === 'chat' ? 'active' : ''} onClick={() => setPanelTab('chat')}><MessageSquare size={14} />대화</button><button className={panelTab === 'proposals' ? 'active' : ''} onClick={() => setPanelTab('proposals')}><ListChecks size={14} />제안{pending > 0 && <span className="count-badge">{pending}</span>}</button></div>
-        {panelTab === 'proposals' && workspace ? <ProposalList workspace={workspace} onAccept={id => void act(async () => update(await window.workspace.acceptProposal(id)))} onReject={(id, reason) => void act(async () => update(await window.workspace.rejectProposal(id, reason)))} onRevise={(proposal, text) => void request(`이전 제안 '${proposal.title}'을 수정해줘. 요청: ${text}`, proposal.id)} onSource={select} />
+        {panelTab === 'proposals' && workspace ? <ProposalList workspace={workspace} onAccept={id => void act(async () => update(await window.workspace.acceptProposal(id)))} disabled={running || busy} onReject={(id, reason, feedbackId) => rejection(id, reason, feedbackId)} onRetry={id => { const feedback = workspace.feedbacks?.find(f => f.id === id); if (feedback) void rejection(feedback.proposalId, feedback.reason, id, true); }} onRevise={(proposal, text) => void request(`이전 제안 '${proposal.title}'을 수정해줘. 요청: ${text}`, proposal.id)} onSource={select} />
           : <div className="chat-messages">{workspace?.messages.length ? workspace.messages.map(message => <div key={message.id} className={'chat-message message-' + message.role}><div className="message-author">{message.role === 'assistant' ? <><Sparkles size={12} />Docflow</> : '나'}</div><div className="chat-prose"><Markdown text={message.text} /></div></div>) : <div className="chat-empty"><div className="assistant-symbol"><Sparkles size={23} /></div><h3>어떤 기획을 함께할까요?</h3><div className="suggestion-actions"><button disabled={!workspace} onClick={() => preparePrompt('현재 프로젝트를 바탕으로 PRD 초안을 새 문서로 작성해줘.')}><FilePlus2 size={15} /><span>새 기획서 작성</span><ChevronRight size={13} /></button><button disabled={!workspace} onClick={() => preparePrompt('기존 문서에서 누락된 요구사항과 예외 처리를 제안해줘.')}><ListChecks size={15} /><span>빠진 내용 검토</span><ChevronRight size={13} /></button><button disabled={!workspace} onClick={() => preparePrompt('관련 문서를 바탕으로 사용자 흐름을 다이어그램 문서로 만들어줘.')}><GitBranch size={15} /><span>사용자 흐름 정리</span><ChevronRight size={13} /></button></div></div>}{running && <div className="generation-progress"><span className="spinner" />{progress}</div>}<div ref={chatEnd} /></div>}
         <div className="composer-area">{workspace && <button className="context-chip" onClick={openContext}><Layers size={12} /><span>{section ? section.title : doc?.title || '프로젝트'} · 맥락 확인</span><ChevronDown size={12} /></button>}<div className="composer"><textarea ref={promptRef} aria-label="AI에게 요청" placeholder={workspace ? '아이디어를 적거나 문서 보완을 요청하세요…' : '프로젝트를 먼저 열어 주세요'} disabled={!workspace || running} value={prompt} onChange={e => setPrompt(e.target.value)} onKeyDown={e => { if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); void request(); } }} /><div className="composer-footer"><button className="provider-name" aria-label="AI 연결 설정" title="AI 연결 설정" disabled={running || busy} onClick={() => setConnectionSetup(true)}><span className={'status-dot ' + (!status.connected ? 'offline' : '')} /><span>{preferences.model || (preferences.provider === 'claude' ? 'Claude 모델 선택' : 'Codex 기본 모델')}</span><ChevronDown size={12} /></button>{running ? <button className="send-button stopping" title="요청 취소" aria-label="요청 취소" onClick={() => void window.workspace.cancelRequest()}><Square size={13} fill="currentColor" /></button> : <button className="send-button" title="요청 보내기" aria-label="요청 보내기" disabled={!workspace || !prompt.trim() || busy} onClick={() => void request()}><ArrowUp size={18} /></button>}</div></div><div className="assistant-footer"><span>{status.detail}</span><button className="text-button" aria-label="AI 사용량" data-tooltip="이 프로젝트의 요청별 토큰과 제공자 계정 한도를 확인합니다. 조회 불가 사유와 마지막 확인 시각도 표시합니다." disabled={!workspace} onClick={() => setUsageOpen(true)}>사용량</button><button className="icon-button" title="AI 연결 확인" aria-label="AI 연결 확인" disabled={running} onClick={() => void act(async () => setStatus(await window.workspace.providerStatus()))}><RefreshCw size={11} /></button></div></div>
       </aside>}

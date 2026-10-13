@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { ProjectStore } from './project/store';
 import { ProjectRegistry } from './project/registry';
 import { ProposalService } from './project/proposals';
+import { FeedbackService } from './project/feedback';
 import { buildContext } from './project/context';
 import { exampleDocuments } from './project/examples';
 import { prepareImports } from './project/imports';
@@ -14,7 +15,7 @@ import { ClaudeProvider } from './ai/claude-provider';
 import { CredentialStore } from './ai/credential-store';
 import { normalizePreferences, updatePreferences } from './ai/settings';
 import type { AiProvider } from './ai/provider';
-import type { ContextInput, AiEvent, Message, Preferences, ImportInput, AiProviderId, RequestUsage, UsageLimits } from '../shared/contracts';
+import type { ContextInput, ContextSnapshot, AiEvent, Message, Preferences, ImportInput, AiProviderId, RequestUsage, UsageLimits } from '../shared/contracts';
 import { normalizeCodexUsage } from './ai/usage';
 import { documentTypeSchema } from '../shared/proposal-schema';
 const str = z.string().max(2_000_000).refine(text => Buffer.byteLength(text, 'utf8') <= 2_000_000, '2MB 이하의 Markdown만 저장할 수 있습니다.'); const id = z.string().min(1).max(250);
@@ -33,7 +34,8 @@ const schemas: Record<string, z.ZodType> = {
   saveProject: z.tuple([z.string().trim().min(1).max(200), z.string().max(10000), z.string().max(10000)]),
   connectDocuments: z.tuple([id, id, z.string().trim().min(1).max(100)]), removeRelation: z.tuple([id]),
   previewContext: z.tuple([contextSchema]), startRequest: z.tuple([contextSchema, id.optional()]), cancelRequest: z.tuple([]),
-  acceptProposal: z.tuple([id]), rejectProposal: z.tuple([id, z.string().max(3000).optional()]), providerStatus: z.tuple([z.enum(['codex', 'claude']).optional()])
+  acceptProposal: z.tuple([id]), rejectProposal: z.tuple([id, z.string().max(3000).optional()]), providerStatus: z.tuple([z.enum(['codex', 'claude']).optional()]),
+  sendRejection: z.tuple([id, z.string().max(3000), id, contextSchema, z.string().max(4000)]), retryRejection: z.tuple([id, contextSchema, z.string().max(4000)])
 };
 export function registerWorkspace(window: BrowserWindow) {
   const dataRoot = process.env.DOCFLOW_DATA_DIR || app.getPath('userData'); mkdirSync(dataRoot, { recursive: true });
@@ -151,17 +153,37 @@ export function registerWorkspace(window: BrowserWindow) {
       }
       case 'cancelRequest': controller?.abort(); return;
       case 'acceptProposal': return new ProposalService(requireStore()).accept(args[0]);
-      case 'rejectProposal': return new ProposalService(requireStore()).reject(args[0], args[1]);
-      case 'startRequest': {
+      case 'rejectProposal': {
+        if (controller) throw new Error('AI 요청이 끝난 뒤 제안을 거절해 주세요.');
+        return new ProposalService(requireStore()).reject(args[0], args[1]);
+      }
+      case 'sendRejection': case 'retryRejection': case 'startRequest': {
         if (controller) throw new Error('이전 AI 요청이 진행 중입니다.');
-        const s = requireStore(); const input = args[0] as ContextInput;
-        const snapshot = await buildContext(input, s, args[1]); const requestId = snapshot.requestId;
-        if (s.workspace().drafts?.some(draft => snapshot.sources.some(source => source.documentId === draft.documentId))) throw new Error('요청 맥락에 미저장 초안이 있습니다. 초안을 저장하거나 해당 문서를 제외해 주세요.');
+        const s = requireStore(); const feedbackService = new FeedbackService(s);
+        const isFeedback = method !== 'startRequest';
+        if (isFeedback && args[method === 'sendRejection' ? 4 : 2] !== s.root) throw new Error('프로젝트가 바뀌어 거절 요청을 적용하지 않았습니다.');
+        const feedback = method === 'sendRejection' ? feedbackService.prepare(args[0], args[1], args[2]) : method === 'retryRejection' ? feedbackService.get(args[0]) : undefined;
+        if (feedback?.status === 'completed') return null;
+        if (feedback && !['ready', 'failed'].includes(feedback.status)) throw new Error('이미 진행 중인 피드백입니다.');
+        const input = (method === 'startRequest' ? args[0] : method === 'sendRejection' ? args[3] : args[1]) as ContextInput;
+        const replacesId = isFeedback ? undefined : args[1];
         const preferences = readSettings();
-        controller = new AbortController(); const currentController = controller; provider = makeProvider(preferences.provider); const client = provider;
+        controller = new AbortController(); const currentController = controller;
+        let snapshot: ContextSnapshot;
+        try {
+          snapshot = await buildContext(feedback ? { ...input, instruction: `거절 이유를 검토하고 답변하거나 보완안을 제안해 주세요: ${feedback.reason}` } : input, s, replacesId, feedback?.id);
+          if (s.workspace().drafts?.some(draft => snapshot.sources.some(source => source.documentId === draft.documentId))) throw new Error('요청 맥락에 미저장 초안이 있습니다. 초안을 저장하거나 해당 문서를 제외해 주세요.');
+          if (feedback) feedbackService.setStatus(feedback.id, 'running', snapshot.requestId);
+          provider = makeProvider(preferences.provider);
+        } catch (error) { controller = undefined; if (feedback) feedbackService.setStatus(feedback.id, 'failed'); throw error; }
+        const requestId = snapshot.requestId; const client = provider;
         let usageRecord: RequestUsage = { id: requestId, provider: preferences.provider, model: preferences.model || null, createdAt: new Date().toISOString(), status: 'running', usage: normalizeCodexUsage(undefined) };
-        const userMessage: Message = { id: randomUUID(), role: 'user', text: input.instruction, requestId, createdAt: new Date().toISOString() }; s.put('message', userMessage);
+        if (!feedback) {
+          const userMessage: Message = { id: randomUUID(), role: 'user', text: input.instruction, requestId, createdAt: new Date().toISOString() };
+          try { s.put('message', userMessage); } catch (error) { await client.close(); controller = undefined; provider = undefined; throw error; }
+        }
         setTimeout(async () => {
+          let terminal: AiEvent = { type: 'error', message: 'AI 응답이 완료되지 않았습니다. 다시 요청해 주세요.' };
           try {
             s.saveUsage(usageRecord);
             for await (const aiEvent of client.run(snapshot, currentController.signal, preferences.model || undefined)) {
@@ -170,15 +192,22 @@ export function registerWorkspace(window: BrowserWindow) {
                 if (aiEvent.limits?.windows.length) lastLimits[preferences.provider] = aiEvent.limits;
               }
               if (aiEvent.type === 'result') {
-                if (currentController.signal.aborted) { notify(requestId, { type: 'cancelled' }); break; }
-                await new ProposalService(s).register(snapshot.id, aiEvent.response, args[1]);
+                if (currentController.signal.aborted) { terminal = { type: 'cancelled' }; break; }
+                await new ProposalService(s).register(snapshot.id, aiEvent.response, replacesId);
                 s.put('message', { id: randomUUID(), role: 'assistant', text: aiEvent.response.message, requestId, createdAt: new Date().toISOString() });
               }
-              if (aiEvent.type === 'result' || aiEvent.type === 'error' || aiEvent.type === 'cancelled') { usageRecord = { ...usageRecord, status: aiEvent.type === 'result' ? 'completed' : aiEvent.type }; s.saveUsage(usageRecord); }
+              if (aiEvent.type === 'result' || aiEvent.type === 'error' || aiEvent.type === 'cancelled') { terminal = aiEvent; break; }
               notify(requestId, aiEvent);
             }
-          } catch (error) { notify(requestId, { type: 'error', message: (error as Error).message }); }
-          finally { if (usageRecord.status === 'running') { try { s.saveUsage({ ...usageRecord, status: currentController.signal.aborted ? 'cancelled' : 'error' }); } catch { /* A failed local write is already reported by the request error. */ } } await client.close(); controller = undefined; provider = undefined; }
+          } catch (error) { terminal = { type: 'error', message: (error as Error).message }; }
+          finally {
+            if (currentController.signal.aborted && terminal.type !== 'result') terminal = { type: 'cancelled' };
+            try {
+              s.saveUsage({ ...usageRecord, status: terminal.type === 'result' ? 'completed' : terminal.type === 'cancelled' ? 'cancelled' : 'error' });
+              if (feedback) feedbackService.setStatus(feedback.id, terminal.type === 'result' ? 'completed' : 'failed');
+            } catch (error) { terminal = { type: 'error', message: (error as Error).message }; }
+            try { await client.close(); } finally { controller = undefined; provider = undefined; notify(requestId, terminal); }
+          }
         }, 25);
         return requestId;
       }

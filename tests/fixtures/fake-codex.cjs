@@ -14,6 +14,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
   if (m.id !== undefined) send({ id: m.id, result });
   if (m.method === 'turn/start') setTimeout(() => {
     const context = JSON.parse(m.params.input[0].text);
+    if (context.rejectedProposal && process.env.DOCFLOW_TEST_FEEDBACK_FAILURE) { send({ method: 'turn/completed', params: { threadId: 'test-thread', turn: { status: 'failed', error: { message: 'fixture feedback failure' } } } }); return; }
     const usage = { totalTokens: 150, inputTokens: 100, outputTokens: 50, cachedInputTokens: 40, cacheWriteInputTokens: 0 };
     send({ method: 'thread/tokenUsage/updated', params: { threadId: 'test-thread', turnId: 'test-turn', tokenUsage: { total: usage, last: usage } } });
     send({ method: 'thread/tokenUsage/updated', params: { threadId: 'test-thread', turnId: 'test-turn', tokenUsage: { total: usage, last: usage } } });
@@ -28,7 +29,8 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       const base = { kind: 'relation', title: 'AI 연결 제안', documentType: 'note', targetId: null, baseRevision: null, replacement: '근거가 있는 문서 연결', sourceIds: [from.id, to.id], reason: '선택한 두 문서에서 연결 근거를 찾았습니다.', dependencyIds: [], relation };
       proposals = [base, { ...base, title: 'AI 역방향 연결 제안', relation: { ...relation, fromId: relation.toId, toId: relation.fromId, fromRevision: relation.toRevision, toRevision: relation.fromRevision, relationType: '참고' } }];
     }
-    const item = { id: 'answer', type: 'agentMessage', text: JSON.stringify({ message: '검토했습니다.', proposals }) };
+    if (context.rejectedProposal) proposals = proposals.slice(0, 1);
+    const item = { id: 'answer', type: 'agentMessage', text: JSON.stringify({ message: context.rejectedProposal ? '거절 이유를 검토했습니다.' : '검토했습니다.', proposals }) };
     send({ method: 'item/completed', params: { threadId: 'test-thread', item } });
     send({ method: 'item/completed', params: { threadId: 'test-thread', item } });
     send({ method: 'turn/completed', params: { threadId: 'test-thread', turn: { id: 'test-turn', status: 'completed' } } });

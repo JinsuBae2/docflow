@@ -1,9 +1,12 @@
 import { randomUUID } from 'node:crypto';
-import type { ContextInput, ContextSnapshot, ContextSource, Document } from '../../shared/contracts';
+import type { ContextInput, ContextSnapshot, ContextSource, Document, RejectionFeedback } from '../../shared/contracts';
 import type { ProjectStore } from './store';
-export async function buildContext(input: ContextInput, store: ProjectStore, replacesId?: string): Promise<ContextSnapshot> {
+export async function buildContext(input: ContextInput, store: ProjectStore, replacesId?: string, feedbackId?: string): Promise<ContextSnapshot> {
   const ws = store.workspace(); const excluded = new Set(input.excludedIds); const selected = new Set(input.selectedIds);
   const revisionProposal = replacesId ? ws.proposals.find(p => p.id === replacesId) : undefined;
+  const feedback = feedbackId ? store.get<RejectionFeedback>('feedback', feedbackId) : undefined;
+  const rejected = feedback ? ws.proposals.find(p => p.id === feedback.proposalId && p.status === 'rejected') : undefined;
+  if (feedbackId && (!feedback || !rejected || replacesId)) throw new Error('거절 피드백 맥락을 확인해 주세요.');
   if (replacesId && (!revisionProposal || !['pending', 'stale'].includes(revisionProposal.status))) throw new Error('수정 요청할 대기 제안을 찾을 수 없습니다.');
   if (revisionProposal?.targetId) selected.add(revisionProposal.targetId);
   const docFor = (id: string) => ws.documents.find(d => d.id === id || d.sections.some(s => s.id === id));
@@ -15,6 +18,10 @@ export async function buildContext(input: ContextInput, store: ProjectStore, rep
   const snapshot: ContextSnapshot = { id: randomUUID(), requestId: randomUUID(), instruction: input.instruction, project, sources, decisions: ws.decisions, proposalHistory: ws.proposals.filter(p => ['accepted', 'rejected'].includes(p.status)).map(p => ({ id: p.id, title: p.title, status: p.status, reason: p.reason, rejectionReason: p.rejectionReason })), omittedIds };
   const limit = input.maxCharacters ?? 60000;
   if (revisionProposal) snapshot.revisionProposal = revisionProposal;
+  if (rejected && feedback) {
+    snapshot.rejectedProposal = { id: rejected.id, title: rejected.title, kind: rejected.kind, rejectionReason: feedback.reason };
+    snapshot.proposalHistory = snapshot.proposalHistory.map(p => ({ ...p, reason: '' }));
+  }
   if (JSON.stringify(snapshot).length > limit) throw new Error('필수 맥락이 너무 큽니다. 선택 범위를 줄여 주세요.');
   const linkedIds = new Set(ws.relations.filter(r => selected.has(r.fromId) || selected.has(r.toId) || sources.some(s => s.documentId === r.fromId || s.documentId === r.toId)).flatMap(r => [r.fromId, r.toId]));
   const words = input.instruction.toLowerCase().split(/\s+/).filter(w => w.length > 1);

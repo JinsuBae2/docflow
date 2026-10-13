@@ -25,6 +25,7 @@ test('opens documents, reviews proposals, persists decisions and displays a rela
     await expect(page.getByText('실패 시 원본 보존', { exact: true }).first()).toBeVisible();
     await page.getByRole('button', { name: '제안 수락' }).first().click();
     await page.getByRole('button', { name: '제안 거절' }).first().click();
+    await page.getByRole('button', { name: '보내기', exact: true }).click();
     await expect(page.getByText('수락됨', { exact: true }).first()).toBeVisible();
     await expect(page.getByText('거절됨', { exact: true }).first()).toBeVisible();
     await page.getByRole('button', { name: '새 문서', exact: true }).click();
