@@ -1,0 +1,33 @@
+name: 버그 보고
+description: 재현 가능한 오류를 알려 주세요.
+title: "[버그] "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: 보안 취약점은 SECURITY.md의 비공개 경로로 신고해 주세요. 키·개인 문서·개인 경로는 제거하세요.
+  - type: input
+    id: environment
+    attributes:
+      label: 앱 버전과 운영체제
+      placeholder: 예시 — 0.1.0, macOS arm64
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 재현 단계
+      description: 최소 재현 단계와 비식별 샘플을 적어 주세요.
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: 기대한 동작과 실제 동작
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: 화면과 로그
+      description: 개인정보와 인증정보를 제거한 자료만 첨부해 주세요.
