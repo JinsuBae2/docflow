@@ -1,6 +1,6 @@
 export type Id = string;
 export type Revision = string;
-export interface ProjectEntry { id: Id; name: string; root: string; lastOpenedAt: string; error?: string }
+export interface ProjectEntry { id: Id; name: string; root: string; lastOpenedAt: string; error?: string; collapsed?: boolean }
 export interface EditorDraft { documentId: Id; markdown: string; baseRevision: Revision }
 export interface ProjectSession { selectedId: Id; view: 'document' | 'graph' | 'diagram'; prompt: string; collapsed: boolean }
 export interface AiModel { model: string; displayName: string; isDefault: boolean }
@@ -33,6 +33,7 @@ export interface WorkspaceApi {
   projectDocuments(id: Id): Promise<Array<Pick<Document, 'id' | 'title' | 'type'>>>;
   activateProject(id: Id): Promise<Workspace>;
   forgetProject(id: Id): Promise<Workspace | null>;
+  setProjectCollapsed(id: Id, collapsed: boolean): Promise<void>;
   saveSession(session: ProjectSession, projectRoot: string): Promise<void>;
   saveDraft(draft: EditorDraft, projectRoot: string): Promise<void>;
   discardDraft(documentId: Id, projectRoot: string): Promise<void>;

@@ -13,6 +13,10 @@ it('restores drafts and session without writing Markdown and isolates projects',
     a.saveDraft(draft); a.saveSession({ selectedId: doc.id, view: 'graph', prompt: 'Continue', collapsed: false });
     expect(await readFile(join(a.root, doc.relativePath), 'utf8')).toBe(doc.markdown);
     expect(b.workspace().drafts).toEqual([]); expect(() => b.saveDraft(draft)).toThrow(/문서/);
+    const copied = await b.createDocument('Copy', 'note', doc.markdown);
+    expect(copied.id).toBe(doc.id);
+    b.saveDraft({ ...draft, markdown: '# Other project draft' });
+    expect(a.workspace().drafts?.[0].markdown).toBe('# Unsaved');
     a.close(); a = await ProjectStore.open(join(root, 'a'));
     expect(a.workspace().drafts).toEqual([draft]); expect(a.workspace().session?.prompt).toBe('Continue');
     await a.saveDocument(doc.id, '# External revision', doc.revision);

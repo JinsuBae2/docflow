@@ -20,6 +20,7 @@ const str = z.string().max(2_000_000).refine(text => Buffer.byteLength(text, 'ut
 const contextSchema = z.object({ instruction: z.string().min(1).max(10000), selectedIds: z.array(id).max(300), excludedIds: z.array(id).max(300), maxCharacters: z.number().int().min(1000).max(60000).optional() }).strict();
 const schemas: Record<string, z.ZodType> = {
   listProjects: z.tuple([]), projectDocuments: z.tuple([id]), activateProject: z.tuple([id]), forgetProject: z.tuple([id]),
+  setProjectCollapsed: z.tuple([id, z.boolean()]),
   saveSession: z.tuple([z.object({ selectedId: z.string().max(250), view: z.enum(['document', 'graph', 'diagram']), prompt: z.string().max(10000), collapsed: z.boolean() }).strict(), z.string().max(4000)]),
   saveDraft: z.tuple([z.object({ documentId: id, markdown: str, baseRevision: id }).strict(), z.string().max(4000)]), discardDraft: z.tuple([id, z.string().max(4000)]),
   current: z.tuple([]), openProject: z.tuple([]), createProject: z.tuple([]), openExample: z.tuple([]), exportDocuments: z.tuple([]),
@@ -58,6 +59,7 @@ export function registerWorkspace(window: BrowserWindow) {
     if (['saveSession', 'saveDraft', 'discardDraft'].includes(method) && args[1] !== requireStore().root) throw new Error('프로젝트가 바뀌어 저장 요청을 적용하지 않았습니다.');
     switch (method) {
       case 'listProjects': return registry.list();
+      case 'setProjectCollapsed': registry.setCollapsed(args[0], args[1]); return;
       case 'activateProject': return switchProject(registry.resolve(args[0]));
       case 'projectDocuments': {
         const root = registry.resolve(args[0]); const temporary = root === store?.root ? store : await ProjectStore.open(root);

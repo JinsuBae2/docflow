@@ -186,6 +186,10 @@ test('onboards, previews local imports without losing drafts, saves the CLI mode
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await page.getByRole('button', { name: 'AI 연결 설정', exact: true }).click();
     await expect(page.getByLabel('AI 모델')).toHaveValue('test-fast');
+    await expect(page.getByRole('heading', { name: '문서 관계 지도', exact: true })).toBeVisible();
+    await expect(page.locator('.react-flow__node')).toHaveCount(5);
+    await page.getByRole('button', { name: '안내 닫기', exact: true }).click();
+    await page.getByRole('button', { name: '문서', exact: true }).click();
     await expect(page.getByRole('heading', { name: '프로젝트 개요', exact: true })).toBeVisible();
   } finally { await closeTestApp(app); await rm(root, { recursive: true, force: true }); }
 });

@@ -13,6 +13,9 @@ it('migrates the last root, preserves settings, deduplicates paths and forgets w
     const first = registry.list()[0]; expect(first.root).toBe(realpathSync(project));
     expect(registry.register(join(project, '.'), 'Renamed').id).toBe(first.id);
     expect(registry.list()).toHaveLength(1); expect(registry.list()[0].name).toBe('Renamed');
+    const other = join(root, 'other'); mkdirSync(other); const second = registry.register(other, 'Second');
+    registry.register(project, 'Renamed'); expect(registry.list().map(item => item.id)).toEqual([first.id, second.id]);
+    registry.forget(second.id);
     registry.patch({ onboardingDone: true }); expect(registry.read().models).toEqual({ claude: 'chosen' });
     registry.forget(first.id); expect(registry.list()).toHaveLength(0);
     expect(readFileSync(join(project, 'keep.md'), 'utf8')).toBe('# Keep');

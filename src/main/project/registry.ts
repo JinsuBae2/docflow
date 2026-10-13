@@ -28,8 +28,8 @@ export class ProjectRegistry {
   register(root: string, name: string): ProjectEntry {
     root = realpathSync(root);
     const entries = this.list(); const existing = entries.find(entry => entry.root === root);
-    const entry = { id: existing?.id || randomUUID(), name, root, lastOpenedAt: new Date().toISOString() };
-    this.patch({ projects: [...entries.filter(item => item.id !== entry.id), entry], root }); return entry;
+    const entry = { id: existing?.id || randomUUID(), name, root, lastOpenedAt: new Date().toISOString(), collapsed: existing?.collapsed };
+    this.patch({ projects: existing ? entries.map(item => item.id === entry.id ? entry : item) : [...entries, entry], root }); return entry;
   }
   resolve(id: string) {
     const entry = this.list().find(item => item.id === id);
@@ -42,5 +42,9 @@ export class ProjectRegistry {
     const entry = this.list().find(item => item.id === id);
     if (!entry) throw new Error('등록된 프로젝트를 찾을 수 없습니다.');
     this.patch({ projects: this.list().filter(item => item.id !== id), ...(this.read().root === entry.root ? { root: undefined } : {}) });
+  }
+  setCollapsed(id: string, collapsed: boolean) {
+    if (!this.list().some(entry => entry.id === id)) throw new Error('등록된 프로젝트를 찾을 수 없습니다.');
+    this.patch({ projects: this.list().map(entry => entry.id === id ? { ...entry, collapsed } : entry) });
   }
 }
