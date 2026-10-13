@@ -110,6 +110,7 @@ export default function App() {
   const [projectName, setProjectName] = useState('');
   const [goal, setGoal] = useState('');
   const [constraints, setConstraints] = useState('');
+  const [relationSource, setRelationSource] = useState('');
   const [relationTarget, setRelationTarget] = useState('');
   const [relationType, setRelationType] = useState('참고');
   const feedbackRequest = useRef(false);
@@ -978,8 +979,10 @@ export default function App() {
                 }
               }}
               onSelect={select}
-              onConnect={() => {
-                setRelationTarget(docs.find((d) => d.id !== doc?.id)?.id || '');
+              onConnect={(fromId, toId) => {
+                const source = fromId || doc?.id || docs[0]?.id || '';
+                setRelationSource(source);
+                setRelationTarget(toId || docs.find((d) => d.id !== source)?.id || '');
                 setModal('relation');
               }}
               onRemove={(id) =>
@@ -1449,22 +1452,34 @@ export default function App() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
-                  if (doc)
-                    void act(async () => {
-                      update(
-                        await window.workspace.connectDocuments(
-                          doc.id,
-                          relationTarget,
-                          relationType,
-                        ),
-                      );
-                      setModal('none');
-                    });
+                  void act(async () => {
+                    update(
+                      await window.workspace.connectDocuments(
+                        relationSource,
+                        relationTarget,
+                        relationType,
+                      ),
+                    );
+                    setModal('none');
+                  });
                 }}
               >
                 <label>
                   기준 문서
-                  <input value={doc?.title || ''} readOnly />
+                  <select
+                    value={relationSource}
+                    onChange={(e) => {
+                      setRelationSource(e.target.value);
+                      if (e.target.value === relationTarget)
+                        setRelationTarget(docs.find((d) => d.id !== e.target.value)?.id || '');
+                    }}
+                  >
+                    {docs.map((d) => (
+                      <option key={d.id} value={d.id}>
+                        {d.title}
+                      </option>
+                    ))}
+                  </select>
                 </label>
                 <label>
                   연결할 문서
@@ -1473,7 +1488,7 @@ export default function App() {
                     onChange={(e) => setRelationTarget(e.target.value)}
                   >
                     {docs
-                      .filter((d) => d.id !== doc?.id)
+                      .filter((d) => d.id !== relationSource)
                       .map((d) => (
                         <option key={d.id} value={d.id}>
                           {d.title}
@@ -1497,7 +1512,15 @@ export default function App() {
                   </datalist>
                 </label>
                 <div className="modal-footer">
-                  <button className="button primary" disabled={busy || !doc || !relationTarget}>
+                  <button
+                    className="button primary"
+                    disabled={
+                      busy ||
+                      !relationSource ||
+                      !relationTarget ||
+                      relationSource === relationTarget
+                    }
+                  >
                     연결 저장
                   </button>
                 </div>

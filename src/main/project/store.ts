@@ -275,6 +275,8 @@ export class ProjectStore {
     const existing = this.all<Relation>('relation').find(
       (r) => r.fromId === fromId && r.toId === toId && r.type === type,
     );
+    // Accepting an AI proposal for an existing link is idempotent; a manual duplicate is a user error.
+    if (existing && origin === 'manual') throw new Error('같은 유형의 연결이 이미 있습니다.');
     if (existing) return existing;
     const relation = { id: randomUUID(), fromId, toId, type, confirmed: true, origin };
     this.put('relation', relation);
