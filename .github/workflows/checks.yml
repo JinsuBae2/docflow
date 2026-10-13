@@ -1,5 +1,12 @@
 name: Checks
-on: [push, pull_request, workflow_dispatch]
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+concurrency:
+  group: checks-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
@@ -20,3 +27,8 @@ jobs:
       - run: npm test
       - run: npm run build
       - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-diagnostics-${{ matrix.os }}
+          path: test-results/**

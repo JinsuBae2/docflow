@@ -3,7 +3,7 @@
   "productName": "Docflow",
   "version": "0.1.0",
   "private": true,
-  "description": "A local visual workspace for AI-assisted project documents",
+  "description": "AI와 함께 문서를 작성하고 관계와 변경을 검토하는 로컬 데스크톱 워크스페이스",
   "author": "Docflow contributors",
   "main": "out/main/index.js",
   "scripts": {
@@ -13,9 +13,11 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "playwright test",
-    "package": "npm run build && electron-forge package",
-    "make": "npm run build && electron-forge make",
-    "make:dmg": "node scripts/make-dmg.mjs"
+    "package": "npm run licenses && npm run build && electron-forge package",
+    "make": "npm run licenses && npm run build && electron-forge make",
+    "make:dmg": "node scripts/make-dmg.mjs",
+    "licenses": "node scripts/generate-notices.mjs",
+    "screenshots": "node scripts/capture-screenshots.mjs"
   },
   "overrides": {
     "katex": "^0.18.2"
@@ -50,5 +52,14 @@
     "typescript": "^7.0.2",
     "vite": "^7.3.7",
     "vitest": "^5.0.4"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JinsuBae2/docflow.git"
+  },
+  "homepage": "https://github.com/JinsuBae2/docflow",
+  "bugs": {
+    "url": "https://github.com/JinsuBae2/docflow/issues"
   }
 }

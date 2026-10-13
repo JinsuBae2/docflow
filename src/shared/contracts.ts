@@ -1,7 +1,9 @@
 export type Id = string;
 export type Revision = string;
 export interface AiModel { model: string; displayName: string; isDefault: boolean }
-export interface Preferences { model: string; onboardingDone: boolean }
+export type AiProviderId = 'codex' | 'claude';
+export interface Preferences { provider: AiProviderId; model: string; models: Record<AiProviderId, string>; onboardingDone: boolean }
+export type PreferencesPatch = Partial<Pick<Preferences, 'provider' | 'model' | 'onboardingDone'>>;
 export interface ImportInput { name: string; text: string }
 export interface ImportFilePreview { name: string; title: string; characters: number; headings: number; diagrams: number; excerpt: string }
 export interface ImportPreview { id: string; files: ImportFilePreview[] }
@@ -32,9 +34,10 @@ export interface WorkspaceApi {
   previewDroppedDocuments(files: ImportInput[]): Promise<ImportPreview>;
   confirmImport(id: string): Promise<Workspace>;
   cancelImport(): Promise<void>;
-  listModels(): Promise<AiModel[]>;
+  listModels(provider?: AiProviderId): Promise<AiModel[]>;
   preferences(): Promise<Preferences>;
-  savePreferences(patch: Partial<Preferences>): Promise<Preferences>;
+  savePreferences(patch: PreferencesPatch): Promise<Preferences>;
+  saveClaudeKey(key: string): Promise<void>;
   createDocument(title: string, type: DocumentType): Promise<Workspace>;
   saveDocument(id: Id, markdown: string, expectedRevision: Revision): Promise<Workspace>;
   exportDocuments(): Promise<boolean>;
@@ -46,6 +49,6 @@ export interface WorkspaceApi {
   cancelRequest(): Promise<void>;
   acceptProposal(id: Id): Promise<Workspace>;
   rejectProposal(id: Id, reason?: string): Promise<Workspace>;
-  providerStatus(): Promise<ProviderStatus>;
+  providerStatus(provider?: AiProviderId): Promise<ProviderStatus>;
   onRequestEvent(listener: (event: RequestEvent) => void): () => void;
 }

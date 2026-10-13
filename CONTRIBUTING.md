@@ -1,7 +1,57 @@
-# Contributing
+# Docflow 기여 안내
 
-Use Node.js 24 and `npm ci`. Run `npm run typecheck`, `npm test`, `npm run build`, then `npm run test:e2e` before proposing changes. The UI suite launches Electron and uses only temporary example data and a fixture provider; never include real documents, credentials, user databases, or account output in a commit.
+버그 재현, 사용성 의견, 문서 개선, 디자인, 테스트와 코드 기여를 환영합니다. 한국어로 이슈와 PR을 작성해 주세요. 큰 기능은 먼저 이슈에서 해결할 문제와 완료 기준을 정하면 중복 작업을 줄일 수 있습니다.
 
-Keep renderer access behind the validated preload bridge. AI output must remain a proposal until explicitly accepted; preserve source IDs, base revisions, rejection history, and recovery guarantees. Add focused tests for behavior changes. Real-account tests are opt-in and consume subscription quota.
+## 개발 환경
 
-This repository has not selected a public distribution license yet. Resolve licensing and signing before distributing releases. The workflows prepare artifacts but do not publish them automatically.
+Node.js 24, npm, Git이 필요합니다. 저장소를 fork하고 clone한 뒤 실행합니다.
+
+```sh
+npm ci
+npm run dev
+```
+
+AI 계정 없이도 예제 프로젝트와 일반 개발·테스트를 실행할 수 있습니다. 실제 계정 요청은 명시적으로 실행하며 요금 또는 구독 사용량이 발생할 수 있습니다.
+
+## 작업 흐름
+
+1. 버그·기능 이슈를 등록하거나 기존 이슈에서 작업 의사를 남깁니다. 작은 오타 수정은 바로 PR을 보내도 됩니다.
+2. 최신 `main`에서 `feat/<이슈번호>-<설명>`, `fix/...`, `docs/...` 브랜치를 만듭니다.
+3. 한 PR에서 한 목적을 다룹니다. 동작 변경에는 회귀를 막는 테스트를 추가합니다.
+4. 아래 검사를 실행하고 PR 양식에 결과·제한·필요한 화면 캡처를 적습니다.
+5. 리뷰와 CI를 통과하면 squash merge합니다. 유지관리자의 자체 PR도 CI를 거칩니다.
+
+```sh
+npm run typecheck
+npm test
+npm run build
+npm run test:e2e
+```
+
+문서만 바꾸었다면 링크와 설명을 확인하고 해당 범위를 PR에 적으면 됩니다. UI 테스트는 임시 데이터와 가짜 제공자를 사용합니다. 개인 문서, DB, 인증정보, 실제 계정 응답을 커밋하지 마세요.
+
+## 커밋과 PR 제목
+
+[Conventional Commits](https://www.conventionalcommits.org/ko/v1.0.0/)를 사용합니다. 타입은 영어, 설명은 한국어를 권장합니다.
+
+```text
+feat(projects): 최근 프로젝트 전환 추가
+fix(import): 취소 후 가져오기 상태 복구
+docs: 설치 안내 보완
+```
+
+사용 타입은 `feat`, `fix`, `docs`, `test`, `refactor`, `perf`, `build`, `ci`, `chore`, `revert`입니다. 범위는 선택 사항이며 호환성을 깨는 변경에는 `!`와 설명을 사용합니다. PR 제목이 squash 커밋 제목이 되므로 명확하게 작성합니다. 중간 작업 커밋까지 정리할 필요는 없습니다. `main`은 배포 가능한 기준선으로 유지하며 상시 `develop` 브랜치는 사용하지 않습니다.
+
+## 반드시 보존할 경계
+
+- renderer의 파일·Node 접근은 검증된 preload/IPC 뒤에 둡니다.
+- AI 출력은 명시적으로 수락하기 전까지 제안입니다.
+- 문서 ID, 원본 revision, 거절 이력, 저장 중단 복구와 미저장 초안을 보존합니다.
+- 외부 Markdown과 Mermaid를 신뢰할 수 없는 입력으로 다룹니다.
+- AI 제공자에 파일 변경·명령 실행 도구를 추가하려면 보안 설계부터 논의합니다.
+
+## AI·라이선스·보안
+
+[AI 활용 안내](AI_USAGE.md)에 따라 AI 도움 범위와 직접 검증한 내용을 PR에 적어 주세요. 기여자는 자신이 제출할 권리를 가진 내용을 제출하며, 별도 합의가 없는 기여는 프로젝트와 같은 MIT 조건으로 제공됩니다. 외부 구성요소의 고지는 유지합니다. 별도 CLA는 요구하지 않습니다.
+
+보안 문제는 공개 이슈에 악용 방법이나 비밀정보를 게시하지 말고 [보안 정책](SECURITY.md)에 따라 비공개로 신고해 주세요. 모든 참여자는 [행동 규칙](CODE_OF_CONDUCT.md)을 따릅니다.
