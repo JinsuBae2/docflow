@@ -3,6 +3,20 @@ import { resolve } from 'node:path';
 import { CodexProvider } from '../../src/main/ai/codex-provider';
 
 describe('Codex provider', () => {
+  it.each([['api-account', 'auth_mode'], ['no-account', 'auth_required'], ['old-server', 'unsupported']])('explains unavailable limits for %s without leaking diagnostics', async (mode, reason) => {
+    const provider = new CodexProvider(process.execPath, [resolve('tests/fixtures/fake-codex.cjs'), mode]);
+    try { expect(await provider.getUsageLimits()).toMatchObject({ windows: [], reason }); } finally { await provider.close(); }
+  });
+  it('reads account windows without inference and emits measured usage before a failed turn', async () => {
+    const provider = new CodexProvider(process.execPath, [resolve('tests/fixtures/fake-codex.cjs')]);
+    try {
+      const limits = await provider.getUsageLimits(); expect(limits.windows[0].remainingPercent).toBe(75);
+      const events = [];
+      for await (const event of provider.run({ id: 'usage', requestId: 'usage-request', instruction: '사용량 실패', sources: [], decisions: [], proposalHistory: [], omittedIds: [], project: { name: 'test', goal: '', constraints: '' } }, new AbortController().signal)) events.push(event);
+      expect(events.find(e => e.type === 'usage')).toMatchObject({ usage: { totalTokens: 150, cachedInputTokens: 40 } });
+      expect(events.at(-1)).toMatchObject({ type: 'error' });
+    } finally { await provider.close(); }
+  });
   it('discovers actual picker models and forwards a chosen model', async () => {
     const provider = new CodexProvider(process.execPath, [resolve('tests/fixtures/fake-codex.cjs')]);
     try {

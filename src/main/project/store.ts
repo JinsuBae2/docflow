@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { basename } from 'node:path';
-import type { Document, DocumentType, Project, Workspace, Relation, Decision, Proposal, ContextSnapshot, Message, EditorDraft, ProjectSession } from '../../shared/contracts';
+import type { Document, DocumentType, Project, Workspace, Relation, Decision, Proposal, ContextSnapshot, Message, EditorDraft, ProjectSession, RequestUsage, UsageSummary, AiProviderId } from '../../shared/contracts';
 import { parseDocument, revisionOf } from './markdown';
 import { ensureProjectDirectory, safePath, readDocumentFile } from './files';
 import { commitFile, recoverPendingOperations, type RecoveryOperation } from './recovery';
@@ -99,6 +99,19 @@ export class ProjectStore {
   saveDraft(draft: EditorDraft) { this.document(draft.documentId); this.put('draft', { ...draft, id: draft.documentId }); }
   discardDraft(documentId: string) { this.remove('draft', documentId); }
   saveSession(session: ProjectSession) { this.put('session', { ...session, id: 'current' }); }
+  saveUsage(record: RequestUsage) { this.put('usage', record); }
+  usageSummary(): UsageSummary {
+    const requests = this.all<RequestUsage>('usage'); const known = new Set(requests.map(r => r.id));
+    for (const message of this.all<Message>('message').filter(m => m.role === 'user')) {
+      if (known.has(message.requestId)) continue; known.add(message.requestId);
+      requests.push({ id: message.requestId, provider: null, model: null, createdAt: message.createdAt, status: 'unknown', usage: { inputTokens: null, outputTokens: null, cachedInputTokens: null, cacheWriteInputTokens: null, totalTokens: null, reason: 'no_history' } });
+    }
+    const totals = (['codex', 'claude'] as AiProviderId[]).map(provider => {
+      const rows = requests.filter(r => r.provider === provider);
+      return { provider, totalTokens: rows.reduce((sum, r) => sum + (r.usage.totalTokens ?? 0), 0), knownRequests: rows.filter(r => r.usage.totalTokens !== null).length, unknownRequests: rows.filter(r => r.usage.totalTokens === null).length };
+    });
+    return { requests: requests.sort((a, b) => b.createdAt.localeCompare(a.createdAt)), totals };
+  }
   addDecision(text: string, sourceIds: string[], proposalId?: string): Decision {
     const decision = { id: proposalId || randomUUID(), text, sourceIds, status: 'accepted' as const };
     this.db.exec('BEGIN IMMEDIATE');

@@ -14,11 +14,13 @@ import { ClaudeProvider } from './ai/claude-provider';
 import { CredentialStore } from './ai/credential-store';
 import { normalizePreferences, updatePreferences } from './ai/settings';
 import type { AiProvider } from './ai/provider';
-import type { ContextInput, AiEvent, Message, Preferences, ImportInput, AiProviderId } from '../shared/contracts';
+import type { ContextInput, AiEvent, Message, Preferences, ImportInput, AiProviderId, RequestUsage, UsageLimits } from '../shared/contracts';
+import { normalizeCodexUsage } from './ai/usage';
 import { documentTypeSchema } from '../shared/proposal-schema';
 const str = z.string().max(2_000_000).refine(text => Buffer.byteLength(text, 'utf8') <= 2_000_000, '2MB 이하의 Markdown만 저장할 수 있습니다.'); const id = z.string().min(1).max(250);
 const contextSchema = z.object({ instruction: z.string().min(1).max(10000), selectedIds: z.array(id).max(300), excludedIds: z.array(id).max(300), maxCharacters: z.number().int().min(1000).max(60000).optional() }).strict();
 const schemas: Record<string, z.ZodType> = {
+  usageSummary: z.tuple([]), usageLimits: z.tuple([z.enum(['codex', 'claude']).optional()]),
   updateRelation: z.tuple([id, z.string().trim().min(1).max(80)]),
   listProjects: z.tuple([]), projectDocuments: z.tuple([id]), activateProject: z.tuple([id]), forgetProject: z.tuple([id]),
   setProjectCollapsed: z.tuple([id, z.boolean()]),
@@ -39,6 +41,7 @@ export function registerWorkspace(window: BrowserWindow) {
   const registry = new ProjectRegistry(settingsFile);
   const readSettings = (): { root?: string } & Preferences => { const saved = registry.read(); return { root: saved.root, ...normalizePreferences(saved) }; };
   const credentials = new CredentialStore(join(dataRoot, 'claude-key.enc'), safeStorage);
+  const lastLimits: Partial<Record<AiProviderId, UsageLimits>> = {};
   const saveSettings = (patch: object) => registry.patch(patch);
   let staged: { id: string; root: string; files: ReturnType<typeof prepareImports> } | undefined;
   const stage = (files: ImportInput[]) => { const s = requireStore(); staged = { id: randomUUID(), root: s.root, files: prepareImports(files) }; return { id: staged.id, files: staged.files.map(({ text: _text, ...preview }) => preview) }; };
@@ -77,10 +80,20 @@ export function registerWorkspace(window: BrowserWindow) {
       case 'saveDraft': requireStore().saveDraft(args[0]); return;
       case 'discardDraft': requireStore().discardDraft(args[0]); return;
       case 'current': return store?.workspace() || null;
+      case 'usageSummary': return requireStore().usageSummary();
+      case 'usageLimits': {
+        const selected = args[0] || readSettings().provider; const client = makeProvider(selected);
+        try {
+          const result = await client.getUsageLimits();
+          if (result.windows.length) { lastLimits[selected as AiProviderId] = result; return result; }
+          if (result.reason === 'auth_required' || result.reason === 'auth_mode') { delete lastLimits[selected as AiProviderId]; return result; }
+          const previous = lastLimits[selected as AiProviderId]; return previous ? { ...previous, reason: result.reason } : result;
+        } finally { await client.close(); }
+      }
       case 'preferences': return normalizePreferences(readSettings());
       case 'saveClaudeKey': {
         if (controller) throw new Error('AI 요청이 끝난 뒤 키를 변경해 주세요.');
-        credentials.set(args[0]); return;
+        credentials.set(args[0]); delete lastLimits.claude; return;
       }
       case 'savePreferences': {
         if (controller) throw new Error('AI 요청이 끝난 뒤 모델을 변경해 주세요.');
@@ -143,20 +156,28 @@ export function registerWorkspace(window: BrowserWindow) {
         if (controller) throw new Error('이전 AI 요청이 진행 중입니다.');
         const s = requireStore(); const input = args[0] as ContextInput;
         const snapshot = await buildContext(input, s, args[1]); const requestId = snapshot.requestId;
-        controller = new AbortController(); const currentController = controller; provider = makeProvider(); const client = provider;
+        const preferences = readSettings();
+        controller = new AbortController(); const currentController = controller; provider = makeProvider(preferences.provider); const client = provider;
+        let usageRecord: RequestUsage = { id: requestId, provider: preferences.provider, model: preferences.model || null, createdAt: new Date().toISOString(), status: 'running', usage: normalizeCodexUsage(undefined) };
         const userMessage: Message = { id: randomUUID(), role: 'user', text: input.instruction, requestId, createdAt: new Date().toISOString() }; s.put('message', userMessage);
         setTimeout(async () => {
           try {
-            for await (const aiEvent of client.run(snapshot, currentController.signal, readSettings().model || undefined)) {
+            s.saveUsage(usageRecord);
+            for await (const aiEvent of client.run(snapshot, currentController.signal, preferences.model || undefined)) {
+              if (aiEvent.type === 'usage') {
+                usageRecord = { ...usageRecord, usage: aiEvent.usage, model: aiEvent.model || usageRecord.model }; s.saveUsage(usageRecord);
+                if (aiEvent.limits?.windows.length) lastLimits[preferences.provider] = aiEvent.limits;
+              }
               if (aiEvent.type === 'result') {
                 if (currentController.signal.aborted) { notify(requestId, { type: 'cancelled' }); break; }
                 await new ProposalService(s).register(snapshot.id, aiEvent.response, args[1]);
                 s.put('message', { id: randomUUID(), role: 'assistant', text: aiEvent.response.message, requestId, createdAt: new Date().toISOString() });
               }
+              if (aiEvent.type === 'result' || aiEvent.type === 'error' || aiEvent.type === 'cancelled') { usageRecord = { ...usageRecord, status: aiEvent.type === 'result' ? 'completed' : aiEvent.type }; s.saveUsage(usageRecord); }
               notify(requestId, aiEvent);
             }
           } catch (error) { notify(requestId, { type: 'error', message: (error as Error).message }); }
-          finally { await client.close(); controller = undefined; provider = undefined; }
+          finally { if (usageRecord.status === 'running') { try { s.saveUsage({ ...usageRecord, status: currentController.signal.aborted ? 'cancelled' : 'error' }); } catch { /* A failed local write is already reported by the request error. */ } } await client.close(); controller = undefined; provider = undefined; }
         }, 25);
         return requestId;
       }

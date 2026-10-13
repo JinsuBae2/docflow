@@ -9,6 +9,26 @@ const json = (value: unknown, status = 200) => new Response(JSON.stringify(value
 async function events(provider: ClaudeProvider, signal = new AbortController().signal, model = 'test-claude') { const result = []; for await (const event of provider.run(context, signal, model)) result.push(event); return result; }
 
 describe('Claude API provider', () => {
+  it('retains measured usage when cancellation arrives after the response body', async () => {
+    const controller = new AbortController();
+    const request = vi.fn().mockResolvedValueOnce(json(models)).mockImplementationOnce(async () => { controller.abort(); return json({ ...response, usage: { input_tokens: 10, output_tokens: 2, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }); });
+    const result = await events(new ClaudeProvider(() => 'fixture-key', request), controller.signal);
+    expect(result.find(e => e.type === 'usage')).toMatchObject({ usage: { totalTokens: 12 } }); expect(result.at(-1)).toMatchObject({ type: 'cancelled' });
+  });
+  it('reports usage and response rate limits even when generated output is incomplete', async () => {
+    const measured = { ...response, stop_reason: 'max_tokens', model: 'test-claude', usage: { input_tokens: 100, output_tokens: 50, cache_read_input_tokens: 40, cache_creation_input_tokens: 10 } };
+    const request = vi.fn().mockResolvedValueOnce(json(models)).mockResolvedValueOnce(new Response(JSON.stringify(measured), { headers: { 'anthropic-ratelimit-tokens-limit': '40000', 'anthropic-ratelimit-tokens-remaining': '35000' } }));
+    const provider = new ClaudeProvider(() => 'fixture-key', request); const result = await events(provider);
+    expect(result.find(e => e.type === 'usage')).toMatchObject({ model: 'test-claude', usage: { totalTokens: 200 }, limits: { source: 'response', windows: [{ remaining: 35000 }] } });
+    expect(result.at(-1)).toMatchObject({ type: 'error' });
+    const before = request.mock.calls.length; expect((await provider.getUsageLimits()).windows[0].remaining).toBe(35000); expect(request).toHaveBeenCalledTimes(before);
+  });
+  it('keeps reported usage on HTTP failures while hiding raw error bodies', async () => {
+    const request = vi.fn().mockResolvedValueOnce(json(models)).mockResolvedValueOnce(json({ error: { message: 'fixture-secret' }, usage: { input_tokens: 10, output_tokens: 2, cache_read_input_tokens: 0, cache_creation_input_tokens: 0 } }, 429));
+    const result = await events(new ClaudeProvider(() => 'fixture-secret', request));
+    expect(result.find(e => e.type === 'usage')).toMatchObject({ usage: { totalTokens: 12 } });
+    expect(JSON.stringify(result)).not.toContain('fixture-secret'); expect(result.at(-1)).toMatchObject({ type: 'error' });
+  });
   it('does not contact the service without credentials', async () => {
     const request = vi.fn(); const provider = new ClaudeProvider(() => '', request);
     expect((await provider.getStatus()).connected).toBe(false);

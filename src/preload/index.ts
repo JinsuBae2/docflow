@@ -4,6 +4,7 @@ const call = (method: string, ...args: unknown[]) => ipcRenderer.invoke('workspa
 const api: WorkspaceApi = {
   listProjects: () => call('listProjects'), projectDocuments: id => call('projectDocuments', id), activateProject: id => call('activateProject', id), forgetProject: id => call('forgetProject', id),
   setProjectCollapsed: (id, collapsed) => call('setProjectCollapsed', id, collapsed),
+  usageSummary: () => call('usageSummary'), usageLimits: provider => call('usageLimits', provider),
   saveSession: (session, root) => call('saveSession', session, root), saveDraft: (draft, root) => call('saveDraft', draft, root), discardDraft: (id, root) => call('discardDraft', id, root),
   openProject: () => call('openProject'), createProject: () => call('createProject'), openExample: () => call('openExample'), current: () => call('current'),
   createDocument: (title, type) => call('createDocument', title, type), saveDocument: (id, markdown, revision) => call('saveDocument', id, markdown, revision),

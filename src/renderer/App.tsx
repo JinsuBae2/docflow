@@ -69,6 +69,7 @@ export default function App() {
     return window.workspace.onRequestEvent(({ requestId, event }) => {
       if (requestIdRef.current && requestIdRef.current !== requestId) return;
       if (event.type === 'progress') setProgress(event.text);
+      else if (event.type === 'usage') return;
       else {
         setRunning(false); setProgress(''); requestIdRef.current = '';
         if (event.type === 'error') setError(event.message);

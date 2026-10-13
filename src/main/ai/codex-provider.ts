@@ -4,10 +4,11 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir, homedir } from 'node:os';
 import { join, dirname, isAbsolute } from 'node:path';
 import { existsSync, realpathSync } from 'node:fs';
-import type { AiEvent, AiModel, ContextSnapshot, ProviderStatus } from '../../shared/contracts';
+import type { AiEvent, AiModel, ContextSnapshot, ProviderStatus, UsageLimits } from '../../shared/contracts';
 import { outputSchema, responseSchema } from '../../shared/proposal-schema';
 import type { AiProvider } from './provider';
 import { documentInstructions } from './instructions';
+import { codexLimits, normalizeCodexUsage } from './usage';
 
 type RpcMessage = { id?: number; method?: string; params?: any; result?: any; error?: { message: string } };
 export function codexExecutable(): string {
@@ -86,10 +87,21 @@ export class CodexProvider implements AiProvider {
     } while (cursor && models.length < 500);
     return models;
   }
+  async getUsageLimits(): Promise<UsageLimits> {
+    try {
+      await this.connect(); const account = await this.rpc('account/read', { refreshToken: false });
+      if (!account.account) return { provider: 'codex', checkedAt: null, source: 'account', windows: [], reason: 'auth_required' };
+      if (!['chatgpt', 'chatgptAuthTokens', 'agentIdentity', 'personalAccessToken'].includes(account.account.type)) return { provider: 'codex', checkedAt: null, source: 'account', windows: [], reason: 'auth_mode' };
+      return codexLimits(await this.rpc('account/rateLimits/read', {}));
+    } catch (error) {
+      const message = (error as Error).message;
+      return { provider: 'codex', checkedAt: null, source: 'account', windows: [], reason: /method.*not.*found|unsupported/i.test(message) ? 'unsupported' : /auth|login|log in/i.test(message) ? 'auth_required' : 'network' };
+    }
+  }
   async *run(context: ContextSnapshot, signal: AbortSignal, model?: string): AsyncGenerator<AiEvent> {
     if (signal.aborted) { yield { type: 'cancelled' }; return; }
     const queue: AiEvent[] = []; let wake: (() => void) | undefined; let done = false;
-    let threadId = ''; let turnId = ''; const items = new Map<string, string>();
+    let threadId = ''; let turnId = ''; let actualModel = model; const items = new Map<string, string>();
     const push = (event: AiEvent, finish = false) => { if (done) return; queue.push(event); done = finish; wake?.(); };
     const cancel = () => { if (threadId && turnId) void this.rpc('turn/interrupt', { threadId, turnId }).catch(() => {}); push({ type: 'cancelled' }, true); };
     const timeout = setTimeout(() => push({ type: 'error', message: '응답 시간이 초과되었습니다. 범위를 줄여 다시 요청해 주세요.' }, true), 180000);
@@ -100,6 +112,8 @@ export class CodexProvider implements AiProvider {
       this.listener = m => {
         if (m.method === 'transport/error') { push({ type: 'error', message: m.params.message }, true); return; }
         if (m.params?.threadId !== threadId) return;
+        if (m.method === 'model/rerouted' && typeof m.params.toModel === 'string') actualModel = m.params.toModel;
+        if (m.method === 'thread/tokenUsage/updated' && (!turnId || !m.params.turnId || m.params.turnId === turnId)) push({ type: 'usage', usage: normalizeCodexUsage(m.params.tokenUsage?.total), model: actualModel });
         if (m.method === 'item/agentMessage/delta') push({ type: 'progress', text: '문서와 연결된 맥락을 검토하고 있습니다.' });
         if (m.method === 'item/completed' && m.params.item?.type === 'agentMessage') items.set(m.params.item.id, m.params.item.text);
         if (m.method === 'turn/completed') {
@@ -118,6 +132,7 @@ export class CodexProvider implements AiProvider {
       for (const name of Object.keys(inherited.config?.plugins || {})) overrides[`plugins.${name}.enabled`] = false;
       const thread = await this.rpc('thread/start', { cwd: this.directory, permissions: 'docflow', approvalPolicy: 'never', ephemeral: true, baseInstructions: instructions, developerInstructions: instructions, config: overrides, ...(model ? { model } : {}) });
       threadId = thread.thread.id;
+      if (typeof thread.model === 'string') actualModel = thread.model;
       if (signal.aborted) { yield { type: 'cancelled' }; return; }
       const turn = await this.rpc('turn/start', { threadId, input: [{ type: 'text', text: JSON.stringify(context) }], outputSchema, permissions: 'docflow', approvalPolicy: 'never', ...(model ? { model } : {}) });
       turnId = turn.turn.id;
