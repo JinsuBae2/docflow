@@ -25,5 +25,13 @@ export async function buildContext(input: ContextInput, store: ProjectStore, rep
     if (JSON.stringify(snapshot).length > limit) { sources.pop(); omittedIds.push(doc.id); }
   }
   for (const id of excluded) if (!omittedIds.includes(id)) omittedIds.push(id);
+  snapshot.relations = []; snapshot.omittedRelationCount = 0;
+  for (const relation of ws.relations) {
+    const from = docFor(relation.fromId); const to = docFor(relation.toId);
+    if (!from || !to || !sources.some(s => s.documentId === from.id) || !sources.some(s => s.documentId === to.id)) continue;
+    snapshot.relations.push({ fromId: from.id, toId: to.id, type: relation.type });
+    if (JSON.stringify(snapshot).length > limit) { snapshot.relations.pop(); snapshot.omittedRelationCount++; }
+  }
+  if (JSON.stringify(snapshot).length > limit) throw new Error('필수 맥락이 너무 큽니다. 선택 범위를 줄여 주세요.');
   store.saveSnapshot(snapshot); return snapshot;
 }

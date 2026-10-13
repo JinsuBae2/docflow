@@ -11,6 +11,7 @@ const api: WorkspaceApi = {
   listModels: provider => call('listModels', provider), preferences: () => call('preferences'), savePreferences: patch => call('savePreferences', patch), saveClaudeKey: key => call('saveClaudeKey', key),
   exportDocuments: () => call('exportDocuments'), saveProject: (name, goal, constraints) => call('saveProject', name, goal, constraints),
   connectDocuments: (from, to, type) => call('connectDocuments', from, to, type), removeRelation: id => call('removeRelation', id),
+  updateRelation: (id, type) => call('updateRelation', id, type),
   previewContext: input => call('previewContext', input), startRequest: (input, replacesId) => call('startRequest', input, replacesId), cancelRequest: () => call('cancelRequest'),
   acceptProposal: id => call('acceptProposal', id), rejectProposal: (id, reason) => call('rejectProposal', id, reason), providerStatus: provider => call('providerStatus', provider),
   onRequestEvent: listener => { const handler = (_event: Electron.IpcRendererEvent, value: RequestEvent) => listener(value); ipcRenderer.on('workspace:event', handler); return () => ipcRenderer.removeListener('workspace:event', handler); }

@@ -17,10 +17,11 @@ export interface Project { id: Id; name: string; goal: string; constraints: stri
 export interface Relation { id: Id; fromId: Id; toId: Id; type: string; confirmed: boolean }
 export interface Decision { id: Id; text: string; sourceIds: Id[]; status: 'accepted' }
 export type ProposalStatus = 'pending' | 'accepted' | 'rejected' | 'superseded' | 'stale';
-export interface ProposalDraft { kind: 'create' | 'update' | 'diagram' | 'decision'; title: string; documentType: DocumentType; targetId: Id | null; baseRevision: Revision | null; replacement: string; sourceIds: Id[]; reason: string; dependencyIds: Id[] }
+export interface RelationDraft { fromId: Id; toId: Id; relationType: string; fromRevision: Revision; toRevision: Revision }
+export interface ProposalDraft { kind: 'create' | 'update' | 'diagram' | 'decision' | 'relation'; title: string; documentType: DocumentType; targetId: Id | null; baseRevision: Revision | null; replacement: string; sourceIds: Id[]; reason: string; dependencyIds: Id[]; relation?: RelationDraft }
 export interface Proposal extends ProposalDraft { id: Id; requestId: Id; snapshotId: Id; status: ProposalStatus; createdAt: string; rejectionReason?: string; replacesId?: Id; resultDocumentId?: Id }
 export interface ContextSource { id: Id; documentId: Id; title: string; revision: Revision; content: string }
-export interface ContextSnapshot { id: Id; requestId: Id; instruction: string; project: Omit<Project, 'id'>; sources: ContextSource[]; decisions: Decision[]; proposalHistory: Array<{ id: Id; title: string; status: ProposalStatus; reason: string; rejectionReason?: string }>; omittedIds: Id[]; revisionProposal?: Proposal }
+export interface ContextSnapshot { id: Id; requestId: Id; instruction: string; project: Omit<Project, 'id'>; sources: ContextSource[]; decisions: Decision[]; proposalHistory: Array<{ id: Id; title: string; status: ProposalStatus; reason: string; rejectionReason?: string }>; omittedIds: Id[]; revisionProposal?: Proposal; relations?: Array<Pick<Relation, 'fromId' | 'toId' | 'type'>>; omittedRelationCount?: number }
 export interface AiResponse { message: string; proposals: ProposalDraft[] }
 export type AiEvent = { type: 'progress'; text: string } | { type: 'result'; response: AiResponse } | { type: 'cancelled' } | { type: 'error'; message: string };
 export interface ProviderStatus { connected: boolean; label: string; detail: string }
@@ -55,6 +56,7 @@ export interface WorkspaceApi {
   saveProject(name: string, goal: string, constraints: string): Promise<Workspace>;
   connectDocuments(fromId: Id, toId: Id, type: string): Promise<Workspace>;
   removeRelation(id: Id): Promise<Workspace>;
+  updateRelation(id: Id, type: string): Promise<Workspace>;
   previewContext(input: ContextInput): Promise<ContextSnapshot>;
   startRequest(input: ContextInput, replacesId?: Id): Promise<Id>;
   cancelRequest(): Promise<void>;

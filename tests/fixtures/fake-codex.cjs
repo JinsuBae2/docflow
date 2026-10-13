@@ -12,7 +12,13 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     if (context.instruction === '모델 전달 검증' && m.params.model !== 'test-fast') { send({ method: 'turn/completed', params: { threadId: 'test-thread', turn: { status: 'failed', error: { message: 'Selected model was not forwarded.' } } } }); return; }
     const target = context.sources[0];
     const draft = target ? { kind: 'update', title: '실패 시 원본 보존', documentType: 'prd', targetId: target.documentId, baseRevision: target.revision, replacement: target.content + '\n\n## 실패 시 원본 보존\n파일을 열지 못하면 원본을 유지하고 오류를 표시합니다.\n', sourceIds: [target.id], reason: '파일 접근 실패 시 데이터 보존이 필요합니다.', dependencyIds: [] } : null;
-    const proposals = draft ? [draft, { ...draft, title: '추가 안내', reason: '사용자의 다음 행동을 안내합니다.' }] : [];
+    let proposals = draft ? [draft, { ...draft, title: '추가 안내', reason: '사용자의 다음 행동을 안내합니다.' }] : [];
+    if (context.instruction.includes('관계 검토') && context.sources.length >= 2) {
+      const from = context.sources[0]; const to = context.sources[1];
+      const relation = { fromId: from.documentId, toId: to.documentId, relationType: '근거', fromRevision: from.revision, toRevision: to.revision };
+      const base = { kind: 'relation', title: 'AI 연결 제안', documentType: 'note', targetId: null, baseRevision: null, replacement: '근거가 있는 문서 연결', sourceIds: [from.id, to.id], reason: '선택한 두 문서에서 연결 근거를 찾았습니다.', dependencyIds: [], relation };
+      proposals = [base, { ...base, title: 'AI 역방향 연결 제안', relation: { ...relation, fromId: relation.toId, toId: relation.fromId, fromRevision: relation.toRevision, toRevision: relation.fromRevision, relationType: '참고' } }];
+    }
     const item = { id: 'answer', type: 'agentMessage', text: JSON.stringify({ message: '검토했습니다.', proposals }) };
     send({ method: 'item/completed', params: { threadId: 'test-thread', item } });
     send({ method: 'item/completed', params: { threadId: 'test-thread', item } });
