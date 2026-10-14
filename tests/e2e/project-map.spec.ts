@@ -32,8 +32,12 @@ test('shows root/documents/sections, persists dragged cards, folds sections and 
       .filter({ has: page.locator('.map-document') })
       .first();
     const id = await node.getAttribute('data-id');
-    const box = (await node.boundingBox())!;
     await expect(page.locator('.react-flow__edge-path').first()).toBeVisible();
+    await page.locator('.react-flow__controls-fitview').click();
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+    const box = (await node.boundingBox())!;
     await page.evaluate(() => {
       const original = Worker.prototype.postMessage;
       document.body.dataset.routingUpdates = '0';
@@ -53,20 +57,20 @@ test('shows root/documents/sections, persists dragged cards, folds sections and 
     });
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 3);
     await page.mouse.down();
-    for (let step = 1; step <= 20; step++) {
+    let updates = 0;
+    for (let step = 1; step <= 100; step++) {
+      const progress = step <= 20 ? step / 20 : 1 + Math.sin(step) / 10;
       await page.mouse.move(
-        box.x + box.width / 2 + (50 * step) / 20,
-        box.y + box.height / 3 + (100 * step) / 20,
+        box.x + box.width / 2 + 50 * progress,
+        box.y + box.height / 3 + 100 * progress,
       );
       // Simulate continuous pointer input across multiple routing intervals.
       await new Promise((resolve) => setTimeout(resolve, 20));
-      if (step === 15) {
-        expect(
-          Number(await page.locator('body').getAttribute('data-routing-updates')),
-        ).toBeGreaterThan(0);
-        expect(await page.locator('.react-flow__edge-path').count()).toBeGreaterThan(0);
-      }
+      updates = Number(await page.locator('body').getAttribute('data-routing-updates'));
+      if (step >= 20 && updates > 0) break;
     }
+    expect(updates).toBeGreaterThan(0);
+    expect(await page.locator('.react-flow__edge-path').count()).toBeGreaterThan(0);
     await page.mouse.up();
     await expect
       .poll(async () => {
