@@ -157,6 +157,11 @@ test('renders semantic flows, preserves manual positions, projects collapsed edg
       (flow) => flow.id === draft.id,
     )!;
     await card.focus();
+    await expect(card).toHaveClass(/draggable/);
+    if (!(await card.getAttribute('class'))?.split(' ').includes('selected')) {
+      await page.keyboard.press('Enter');
+    }
+    await expect(card).toHaveClass(/selected/);
     await page.keyboard.press('ArrowRight');
     await expect
       .poll(async () => {
