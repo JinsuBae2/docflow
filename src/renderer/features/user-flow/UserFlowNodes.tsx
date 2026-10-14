@@ -11,7 +11,7 @@ export type SemanticFlowNode = Node<
     inputs: string[];
     outputs: Array<{ id: string; label?: string }>;
     onEvidence: (evidence: FlowEvidence) => void;
-    onToggle: () => void;
+    onToggle: (button: HTMLButtonElement) => void;
   },
   'semantic'
 >;
@@ -51,7 +51,7 @@ export function UserFlowNodeCard({ data }: NodeProps<SemanticFlowNode>) {
             aria-label={`${node.data.label} ${node.collapsed ? '펼치기' : '접기'}`}
             onClick={(event) => {
               event.stopPropagation();
-              data.onToggle();
+              data.onToggle(event.currentTarget);
             }}
           >
             {node.collapsed ? '+' : '−'}

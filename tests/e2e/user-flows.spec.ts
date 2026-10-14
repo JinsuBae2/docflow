@@ -202,11 +202,29 @@ test('renders semantic flows, preserves manual positions, projects collapsed edg
     await expect(page.getByRole('heading', { name: '프로젝트 개요', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Phase1 여정 · 로그인 화면', exact: true }).click();
     await expect(page.locator('.react-flow__node[data-id="page"]')).toHaveClass(/selected/);
+    await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setSize(1100, 900));
+    await canvas.locator('.react-flow__controls-fitview').click();
     await expect(canvas.locator('.user-flow-page strong')).toBeInViewport();
     await canvas.locator('.react-flow__controls-zoomin').click();
     await page.evaluate(
       () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
     );
+    const canvasBounds = (await canvas.boundingBox())!;
+    const collapseBounds = (await page
+      .getByRole('button', { name: '온보딩 접기', exact: true })
+      .boundingBox())!;
+    const panX = canvasBounds.x + 80 - collapseBounds.x;
+    await page.mouse.move(
+      canvasBounds.x + canvasBounds.width - 20,
+      canvasBounds.y + canvasBounds.height - 20,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      canvasBounds.x + canvasBounds.width - 20 + panX,
+      canvasBounds.y + canvasBounds.height - 20,
+      { steps: 10 },
+    );
+    await page.mouse.up();
     const viewportBeforeCollapse = await canvas
       .locator('.react-flow__viewport')
       .getAttribute('style');
@@ -232,9 +250,29 @@ test('renders semantic flows, preserves manual positions, projects collapsed edg
       await page.screenshot({ path: test.info().outputPath('collapsed-flow-failure.png') });
       throw error;
     }
-    await expect(canvas.locator('.react-flow__viewport')).toHaveAttribute(
-      'style',
-      viewportBeforeCollapse!,
+    const expand = page.getByRole('button', { name: '온보딩 펼치기', exact: true });
+    await expect
+      .poll(() =>
+        expand.evaluate((button) => {
+          const box = button.getBoundingClientRect();
+          const bounds = button.closest('.user-flow-canvas')!.getBoundingClientRect();
+          const hit = document.elementFromPoint(box.x + box.width / 2, box.y + box.height / 2);
+          return (
+            box.left >= bounds.left &&
+            box.right <= bounds.right &&
+            box.top >= bounds.top &&
+            box.bottom <= bounds.bottom &&
+            !!hit &&
+            button.contains(hit)
+          );
+        }),
+      )
+      .toBe(true);
+    const viewportAfterCollapse = await canvas
+      .locator('.react-flow__viewport')
+      .getAttribute('style');
+    expect(viewportAfterCollapse!.match(/scale\([^)]+\)/)?.[0]).toBe(
+      viewportBeforeCollapse!.match(/scale\([^)]+\)/)?.[0],
     );
     await expect(page.locator('.flow-detail').getByRole('status')).toHaveText('저장됨');
     await page.getByRole('button', { name: '온보딩 펼치기', exact: true }).click();

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ReactFlow,
   Background,
@@ -9,6 +9,7 @@ import {
   type EdgeProps,
   type NodeChange,
   type Viewport,
+  type ReactFlowInstance,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { Document } from '../../../shared/contracts';
@@ -80,6 +81,8 @@ export function UserFlowCanvas({
   }, [flow, focus]);
   const [moving, setMoving] = useState<Record<string, { x: number; y: number }>>({});
   const [viewport, setViewport] = useState<Viewport>();
+  const canvas = useRef<HTMLDivElement>(null);
+  const instance = useRef<Pick<ReactFlowInstance, 'getViewport'>>(null);
   const projectionKey = projected.nodes.map((node) => `${node.id}:${!!node.collapsed}`).join('|');
   const nodes: SemanticFlowNode[] = projected.nodes.map((node) => {
     const inputs =
@@ -122,8 +125,22 @@ export function UserFlowCanvas({
         inputs,
         outputs,
         onEvidence,
-        onToggle: () => {
+        onToggle: (button) => {
           if (disabled) return;
+          const current = instance.current?.getViewport();
+          const bounds = canvas.current?.getBoundingClientRect();
+          if (current && bounds) {
+            const box = button.getBoundingClientRect();
+            const width = node.collapsed ? 250 : node.width || 250;
+            const nextWidth = node.collapsed ? node.width || 250 : 250;
+            // The header button follows the group's right edge as its width changes.
+            const left = box.left + (nextWidth - width) * current.zoom;
+            const right = left + box.width;
+            const x = Math.max(bounds.left + 12 - left, 0) + Math.min(bounds.right - 12 - right, 0);
+            const y =
+              Math.max(bounds.top + 12 - box.top, 0) + Math.min(bounds.bottom - 72 - box.bottom, 0);
+            if (x || y) setViewport({ ...current, x: current.x + x, y: current.y + y });
+          }
           setFocus('');
           onChange({
             ...flow,
@@ -160,9 +177,12 @@ export function UserFlowCanvas({
     }
   };
   return (
-    <div className="user-flow-canvas" aria-label="유저플로우 캔버스">
+    <div ref={canvas} className="user-flow-canvas" aria-label="유저플로우 캔버스">
       <ReactFlow
         key={projectionKey}
+        onInit={(flowInstance) => {
+          instance.current = flowInstance;
+        }}
         viewport={viewport}
         onViewportChange={setViewport}
         nodes={nodes}
