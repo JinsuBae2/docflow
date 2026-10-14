@@ -30,6 +30,7 @@ export class ProjectMapStore {
     for (const p of positions) merged.set(p.nodeId, p);
     this.store.put('map-view', {
       id: projectId,
+      version: (map.version || 0) + 1,
       positions: [...merged.values()],
       collapsedDocumentIds: map.collapsedDocumentIds,
       legendCollapsed: map.legendCollapsed,
@@ -46,6 +47,7 @@ export class ProjectMapStore {
       throw new Error('접을 문서를 찾을 수 없습니다.');
     this.store.put('map-view', {
       id: projectId,
+      version: (map.version || 0) + 1,
       positions: map.positions,
       ...view,
       collapsedDocumentIds: [...new Set(view.collapsedDocumentIds)],

@@ -1,3 +1,47 @@
+import type { ProjectMap } from '../../../shared/project-map';
+export function layoutProjectMap(
+  map: ProjectMap,
+  sizes: Record<string, { width: number; height: number }>,
+) {
+  const result: Record<string, { x: number; y: number }> = {};
+  const height = (id: string) => sizes[id]?.height || 82;
+  let y = 0;
+  for (const doc of map.nodes.filter((n) => n.kind === 'document')) {
+    const children = map.collapsedDocumentIds.includes(doc.id)
+      ? []
+      : map.nodes.filter((n) => n.documentId === doc.id && n.kind !== 'document');
+    const start = y;
+    for (const node of children) {
+      result[node.id] = { x: 760, y };
+      y += height(node.id) + 24;
+    }
+    y = Math.max(y, start + height(doc.id) + 24);
+    result[doc.id] = { x: 360, y: start + (y - start - 24 - height(doc.id)) / 2 };
+    y += 48;
+  }
+  const root = map.nodes.find((n) => n.kind === 'root');
+  if (root) result[root.id] = { x: 0, y: Math.max(0, (y - 48 - height(root.id)) / 2) };
+  for (const p of map.positions) if (result[p.nodeId]) result[p.nodeId] = { x: p.x, y: p.y };
+  // Only newly placed cards move out of the way of saved coordinates.
+  const saved = new Set(map.positions.map((p) => p.nodeId));
+  const placed = Object.entries(result).filter(([id]) => saved.has(id));
+  for (const [id, p] of Object.entries(result))
+    if (!saved.has(id)) {
+      while (
+        placed.some(
+          ([other, q]) =>
+            p.x < q.x + (sizes[other]?.width || 230) + 16 &&
+            p.x + 230 + 16 > q.x &&
+            p.y < q.y + height(other) + 24 &&
+            p.y + height(id) + 24 > q.y,
+        )
+      )
+        p.y += height(id) + 24;
+      placed.push([id, p]);
+    }
+  return result;
+}
+
 export function layoutDocuments(
   ids: string[],
   relations: Array<{ from: string; to: string }>,
@@ -26,41 +70,4 @@ export function layoutDocuments(
       row.map((id, index) => [id, { x: (index - (row.length - 1) / 2) * 280, y: level * 200 }]),
     ),
   );
-}
-
-export const nodeWidth = 230;
-
-/**
- * Picks a vertical lane right of the cards for each relation whose plain line would run behind
- * another card: one in a row it skips, or one between the two cards in a shared row.
- * Lanes stack outward so detours do not overlap.
- */
-export function detourLanes(
-  positions: Record<string, { x: number; y: number }>,
-  edges: Array<{ id: string; from: string; to: string }>,
-): Record<string, number> {
-  const lanes: Record<string, number> = {};
-  let used = 0;
-  for (const edge of edges) {
-    const from = positions[edge.from];
-    const to = positions[edge.to];
-    if (!from || !to || edge.from === edge.to) continue;
-    const top = Math.min(from.y, to.y);
-    const bottom = Math.max(from.y, to.y);
-    const left = Math.min(from.x, to.x);
-    const right = Math.max(from.x, to.x);
-    const blocked = Object.entries(positions).some(([id, p]) => {
-      if (id === edge.from || id === edge.to) return false;
-      if (top === bottom) return p.y === top && p.x > left && p.x < right;
-      return p.y > top && p.y < bottom && p.x < right + nodeWidth && p.x + nodeWidth > left;
-    });
-    if (!blocked) continue;
-    const edgeOfCards = Math.max(
-      ...Object.values(positions)
-        .filter((p) => p.y >= top && p.y <= bottom)
-        .map((p) => p.x + nodeWidth),
-    );
-    lanes[edge.id] = edgeOfCards + 70 + used++ * 36;
-  }
-  return lanes;
 }

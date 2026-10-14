@@ -17,7 +17,7 @@ try {
   await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
   await expect(page.getByRole('heading', { name: '프로젝트 개요', exact: true })).toBeVisible();
   await page.getByRole('button', { name: '관계 지도', exact: true }).click();
-  await expect(page.locator('.react-flow__node')).toHaveCount(3);
+  await expect(page.locator('.map-document')).toHaveCount(3);
   await page.screenshot({ path: 'outputs/packaged.png', fullPage: true });
   console.log('PACKAGED_APP_OK: native Electron, SQLite, preload and graph verified.');
 } finally {

@@ -34,6 +34,7 @@ export interface MapEdge {
   evidence?: MapEvidence[];
 }
 export interface MapView {
+  version?: number;
   positions: MapPosition[];
   collapsedDocumentIds: string[];
   legendCollapsed: boolean;
@@ -125,10 +126,13 @@ export function buildProjectMap(workspace: Workspace): ProjectMap {
   }
   return {
     projectId: workspace.project.id,
+    version: workspace.mapView?.version || 0,
     nodes,
     edges,
     positions: workspace.mapView?.positions || [],
-    collapsedDocumentIds: workspace.mapView?.collapsedDocumentIds || [],
+    collapsedDocumentIds: (workspace.mapView?.collapsedDocumentIds || []).filter((id) =>
+      workspace.documents.some((document) => document.id === id),
+    ),
     legendCollapsed: workspace.mapView?.legendCollapsed || false,
   };
 }

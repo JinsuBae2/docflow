@@ -38,6 +38,8 @@
 
 ## Task 1: 지도 데이터와 원문 구조
 
+**진행 상태:** PR A 구현·검증 완료. Task 1은 `62f9208`에 커밋했고, Tasks 2–3은 UI와 Worker의 결합 검증 후 함께 커밋한다. 실제 검증 범위와 남은 실패 주입 테스트는 `docs/validation-project-map-layout-2026-10-14.md`에 기록했다. 아래 목록은 원래 실행 계획이며 Tasks 4–7은 아직 시작하지 않았다.
+
 **Files:** Create `src/shared/project-map.ts`, `src/main/project/map-store.ts`, `tests/integration/project-map.test.ts`; Modify `src/shared/contracts.ts`, `src/main/project/store.ts`, `src/main/ipc.ts`, `src/preload/index.ts`.
 
 **Interfaces:**

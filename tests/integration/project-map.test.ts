@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, expect, it } from 'vitest';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, unlink } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ProjectStore } from '../../src/main/project/store';
@@ -31,6 +31,7 @@ it('persists layout/view per project and rejects invalid IDs/coordinates atomica
   const map = service.read();
   service.saveLayout(map.projectId, [{ nodeId: doc.id, x: 123, y: -45 }]);
   service.saveView(map.projectId, { collapsedDocumentIds: [doc.id], legendCollapsed: true });
+  expect(service.read().version).toBe(2);
   for (const position of [
     { nodeId: doc.id, x: NaN, y: 0 },
     { nodeId: doc.id, x: Infinity, y: 0 },
@@ -64,4 +65,19 @@ it('keeps section endpoints and inactive positions without reassigning them on h
   await store.saveDocument(a.id, a.markdown.replace('## 같은 제목', '같은 제목'), a.revision);
   expect(service.read().nodes.some((n) => n.id === a.sections[1].id)).toBe(false);
   expect(service.read().positions).toContainEqual({ nodeId: a.sections[1].id, x: 760, y: 222 });
+});
+it('drops inactive folded IDs after file deletion so the remaining map can still be saved', async () => {
+  const doc = await store.createDocument('접은 문서', 'note', '# 소제목');
+  const service = new ProjectMapStore(store);
+  const map = service.read();
+  service.saveView(map.projectId, { collapsedDocumentIds: [doc.id], legendCollapsed: false });
+  await unlink(join(root, doc.relativePath));
+  const updated = service.read();
+  expect(updated.collapsedDocumentIds).toEqual([]);
+  expect(() =>
+    service.saveView(map.projectId, {
+      collapsedDocumentIds: updated.collapsedDocumentIds,
+      legendCollapsed: true,
+    }),
+  ).not.toThrow();
 });
