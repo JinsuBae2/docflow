@@ -55,7 +55,7 @@ import { ProjectSections } from './components/ProjectSections';
 import { Tooltip } from './components/Tooltip';
 import { DocumentView, Markdown } from './features/documents/DocumentView';
 import { ProjectGraph } from './features/graph/ProjectGraph';
-import { Diagram } from './features/graph/Diagram';
+import { ProjectDiagrams as Diagram } from './features/user-flow/ProjectDiagrams';
 import { ProposalList } from './features/proposals/ProposalList';
 import { AnalysisDialog } from './features/analysis/AnalysisDialog';
 import './styles.css';
@@ -85,6 +85,7 @@ export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [selectedId, setSelectedId] = useState('');
   const [sectionId, setSectionId] = useState('');
+  const [userFlowFocus, setUserFlowFocus] = useState<{ flowId: string; nodeId: string }>();
   const [view, setView] = useState<'document' | 'graph' | 'diagram'>('document');
   const [flowEditing, setFlowEditing] = useState(false);
   const [flowSourceLine, setFlowSourceLine] = useState(0);
@@ -995,6 +996,14 @@ export default function App() {
           ) : view === 'diagram' ? (
             <Diagram
               key={workspace.root}
+              workspace={workspace}
+              userFlowFocus={
+                userFlowFocus &&
+                workspace.userFlows?.some((flow) => flow.id === userFlowFocus.flowId)
+                  ? userFlowFocus
+                  : undefined
+              }
+              onEvidence={(evidence) => select(evidence.sectionId || evidence.documentId)}
               flows={workspace.flows}
               issues={workspace.flowIssues}
               staleIds={workspace.staleDiagramIds}
@@ -1092,6 +1101,34 @@ export default function App() {
                   onLink={followLink}
                   onRefresh={() => void act(async () => update(await window.workspace.current()))}
                 />
+                {(workspace!.userFlows || []).some((flow) =>
+                  flow.nodes.some((node) =>
+                    node.evidence.some((evidence) => evidence.documentId === doc.id),
+                  ),
+                ) && (
+                  <div className="user-flow-document-links" aria-label="문서에 연결된 유저플로우">
+                    <h3>연결된 유저플로우 단계</h3>
+                    {(workspace!.userFlows || []).flatMap((flow) =>
+                      flow.nodes
+                        .filter((node) =>
+                          node.evidence.some((evidence) => evidence.documentId === doc.id),
+                        )
+                        .map((node) => (
+                          <button
+                            key={flow.id + node.id}
+                            className="text-button"
+                            onClick={() => {
+                              if (!mayLeave()) return;
+                              setUserFlowFocus({ flowId: flow.id, nodeId: node.id });
+                              setView('diagram');
+                            }}
+                          >
+                            {flow.title} · {node.data.label}
+                          </button>
+                        )),
+                    )}
+                  </div>
+                )}
                 {related.length > 0 && (
                   <div className="related-documents">
                     <h3>

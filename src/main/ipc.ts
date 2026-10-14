@@ -6,6 +6,8 @@ import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { ProjectStore } from './project/store';
 import { ProjectMapStore } from './project/map-store';
+import { UserFlowStore } from './project/user-flows';
+import { userFlowSchema } from '../shared/user-flow';
 import { ProjectRegistry } from './project/registry';
 import { ProposalService } from './project/proposals';
 import { FeedbackService } from './project/feedback';
@@ -48,6 +50,8 @@ const contextSchema = z
   })
   .strict();
 const schemas: Record<string, z.ZodType> = {
+  saveUserFlow: z.tuple([userFlowSchema, id.nullable(), z.string().max(4000)]),
+  importUserFlow: z.tuple([id, id, z.string().max(4000)]),
   projectMap: z.tuple([]),
   saveMapLayout: z.tuple([
     id,
@@ -506,6 +510,29 @@ export function registerWorkspace(window: BrowserWindow) {
         return buildContext(args[0], requireStore());
       case 'projectMap':
         return new ProjectMapStore(requireStore()).read();
+      case 'saveUserFlow': {
+        const current = requireStore();
+        if (current.root !== args[2]) throw new Error('프로젝트가 변경되었습니다.');
+        const workspace = current.workspace();
+        return new UserFlowStore(current.root, workspace.project.id, workspace.documents).save(
+          args[0],
+          args[1],
+        );
+      }
+      case 'importUserFlow': {
+        const current = requireStore();
+        if (current.root !== args[2]) throw new Error('프로젝트가 변경되었습니다.');
+        const workspace = current.workspace();
+        const source = workspace.flows.find(
+          (flow) => flow.id === args[0] && flow.sourceRevision === args[1],
+        );
+        if (!source) throw new Error('원본 흐름이 변경되었습니다.');
+        return new UserFlowStore(
+          current.root,
+          workspace.project.id,
+          workspace.documents,
+        ).importMermaid(source);
+      }
       case 'saveMapLayout':
         return new ProjectMapStore(requireStore()).saveLayout(args[0], args[1]);
       case 'saveMapView':

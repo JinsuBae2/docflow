@@ -119,12 +119,16 @@ test('shows measured tokens, account windows and unavailable reasons without gen
     await dialog.getByRole('button', { name: '사용량 닫기', exact: true }).click();
     await page.getByRole('button', { name: 'AI 연결 설정', exact: true }).click();
     const guide = page.getByRole('dialog');
+    await expect(
+      guide.getByLabel('AI 모델').getByRole('option', { name: /Test Balanced/ }),
+    ).toHaveCount(1);
     await guide.getByLabel('AI 제공자').selectOption('claude');
     await expect(
       guide.getByLabel('AI 모델').getByRole('option', { name: 'Test Claude' }),
     ).toHaveCount(1);
     await guide.getByLabel('AI 모델').selectOption('test-claude');
     await guide.getByRole('button', { name: '설정 저장', exact: true }).click();
+    await expect(guide).toHaveCount(0);
     await page.getByRole('textbox', { name: 'AI에게 요청' }).fill('Claude 사용량 검증');
     await page.getByRole('button', { name: '요청 보내기', exact: true }).click();
     await expect(page.getByText('Claude 사용량 응답 확인', { exact: true })).toBeVisible();

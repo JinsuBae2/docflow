@@ -3,6 +3,8 @@ import type { WorkspaceApi, RequestEvent } from '../shared/contracts';
 const call = (method: string, ...args: unknown[]) =>
   ipcRenderer.invoke('workspace:call', method, args);
 const api: WorkspaceApi = {
+  saveUserFlow: (...args) => call('saveUserFlow', ...args),
+  importUserFlow: (...args) => call('importUserFlow', ...args),
   projectMap: () => call('projectMap'),
   saveMapLayout: (id, positions) => call('saveMapLayout', id, positions),
   saveMapView: (id, view) => call('saveMapView', id, view),
