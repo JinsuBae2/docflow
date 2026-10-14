@@ -197,6 +197,14 @@ test('renders semantic flows, preserves manual positions, projects collapsed edg
     await expect(canvas.locator('.user-flow-card')).toHaveCount(2);
     await expect(canvas.locator('.react-flow__edge')).toHaveCount(2);
     await expect(page.locator('.flow-detail').getByRole('status')).toHaveText('저장됨');
+    await page.getByRole('button', { name: '온보딩 펼치기', exact: true }).click();
+    await expect(canvas.locator('.user-flow-card')).toHaveCount(7);
+    await expect(canvas.locator('.react-flow__edge')).toHaveCount(6);
+    await expect(page.locator('.flow-detail').getByRole('status')).toHaveText('저장됨');
+    await page.getByRole('button', { name: '온보딩 접기', exact: true }).click();
+    await expect(canvas.locator('.user-flow-card')).toHaveCount(2);
+    await expect(canvas.locator('.react-flow__edge')).toHaveCount(2);
+    await expect(page.locator('.flow-detail').getByRole('status')).toHaveText('저장됨');
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows().forEach((window) => window.destroy()),
     );

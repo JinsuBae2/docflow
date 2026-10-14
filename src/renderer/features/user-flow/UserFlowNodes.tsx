@@ -1,4 +1,5 @@
-import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
+import { useLayoutEffect } from 'react';
+import { Handle, Position, useUpdateNodeInternals, type Node, type NodeProps } from '@xyflow/react';
 import { Database, MousePointer2, GitFork } from 'lucide-react';
 import type { Document } from '../../../shared/contracts';
 import type { FlowEvidence, UserFlowNode } from '../../../shared/user-flow';
@@ -17,6 +18,11 @@ export type SemanticFlowNode = Node<
 
 export function UserFlowNodeCard({ data }: NodeProps<SemanticFlowNode>) {
   const { node, documents, inputs, outputs } = data;
+  const updateNodeInternals = useUpdateNodeInternals();
+  const handles = JSON.stringify({ inputs, outputs, collapsed: node.collapsed });
+  useLayoutEffect(() => {
+    updateNodeInternals(node.id);
+  }, [node.id, node.width, node.height, handles, updateNodeInternals]);
   const labels = {
     group: '여정',
     startEnd: node.data.role === 'end' ? '종료' : '시작',
