@@ -20,7 +20,11 @@ test('renders semantic flows, preserves manual positions, projects collapsed edg
   try {
     let page = await app.firstWindow();
     const errors: string[] = [];
+    const warnings: string[] = [];
     page.on('pageerror', (error) => errors.push(error.message));
+    page.on('console', (message) => {
+      if (message.type() === 'warning' || message.type() === 'error') warnings.push(message.text());
+    });
     await page.getByRole('button', { name: '안내 닫기' }).click();
     await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
     const workspace = (await page.evaluate(() => window.workspace.current()))!;
@@ -193,9 +197,40 @@ test('renders semantic flows, preserves manual positions, projects collapsed edg
     await expect(page.getByRole('heading', { name: '프로젝트 개요', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Phase1 여정 · 로그인 화면', exact: true }).click();
     await expect(page.locator('.react-flow__node[data-id="page"]')).toHaveClass(/selected/);
+    await expect(canvas.locator('.user-flow-page strong')).toBeInViewport();
+    await canvas.locator('.react-flow__controls-zoomin').click();
+    await page.evaluate(
+      () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+    );
+    const viewportBeforeCollapse = await canvas
+      .locator('.react-flow__viewport')
+      .getAttribute('style');
     await page.getByRole('button', { name: '온보딩 접기', exact: true }).click();
     await expect(canvas.locator('.user-flow-card')).toHaveCount(2);
-    await expect(canvas.locator('.react-flow__edge')).toHaveCount(2);
+    try {
+      await expect(canvas.locator('.react-flow__edge')).toHaveCount(2);
+    } catch (error) {
+      console.log(
+        'Collapsed flow diagnostics',
+        warnings,
+        await canvas.locator('.react-flow__node').evaluateAll((nodes) =>
+          nodes.map((node) => ({
+            id: node.getAttribute('data-id'),
+            transform: (node as HTMLElement).style.transform,
+            handles: [...node.querySelectorAll('.react-flow__handle')].map((handle) => ({
+              id: handle.getAttribute('data-handleid'),
+              className: handle.className,
+            })),
+          })),
+        ),
+      );
+      await page.screenshot({ path: test.info().outputPath('collapsed-flow-failure.png') });
+      throw error;
+    }
+    await expect(canvas.locator('.react-flow__viewport')).toHaveAttribute(
+      'style',
+      viewportBeforeCollapse!,
+    );
     await expect(page.locator('.flow-detail').getByRole('status')).toHaveText('저장됨');
     await page.getByRole('button', { name: '온보딩 펼치기', exact: true }).click();
     await expect(canvas.locator('.user-flow-card')).toHaveCount(7);

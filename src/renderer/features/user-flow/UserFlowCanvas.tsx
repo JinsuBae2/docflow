@@ -8,6 +8,7 @@ import {
   getSmoothStepPath,
   type EdgeProps,
   type NodeChange,
+  type Viewport,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import type { Document } from '../../../shared/contracts';
@@ -78,6 +79,8 @@ export function UserFlowCanvas({
     });
   }, [flow, focus]);
   const [moving, setMoving] = useState<Record<string, { x: number; y: number }>>({});
+  const [viewport, setViewport] = useState<Viewport>();
+  const projectionKey = projected.nodes.map((node) => `${node.id}:${!!node.collapsed}`).join('|');
   const nodes: SemanticFlowNode[] = projected.nodes.map((node) => {
     const inputs =
       node.type === 'group' && node.collapsed
@@ -159,6 +162,9 @@ export function UserFlowCanvas({
   return (
     <div className="user-flow-canvas" aria-label="유저플로우 캔버스">
       <ReactFlow
+        key={projectionKey}
+        viewport={viewport}
+        onViewportChange={setViewport}
         nodes={nodes}
         edges={projected.edges.map((edge) => {
           const original = flow.edges.find((original) => original.id === edge.id)!;
@@ -191,7 +197,7 @@ export function UserFlowCanvas({
         onNodeClick={(_event, node) => setFocus(node.id)}
         nodesConnectable={false}
         deleteKeyCode={null}
-        fitView
+        fitView={!viewport}
         fitViewOptions={{ maxZoom: 1, padding: 0.16 }}
         minZoom={0.15}
         maxZoom={2}
