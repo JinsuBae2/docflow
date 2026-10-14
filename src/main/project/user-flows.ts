@@ -58,7 +58,11 @@ export class UserFlowStore {
     }
     return { flows, issues };
   }
-  save(input: unknown, expectedRevision: string | null) {
+  save(
+    input: unknown,
+    expectedRevision: string | null,
+    commit?: (saved: UserFlow, before: string | null, after: string) => void,
+  ) {
     const flow = parseUserFlow(input);
     if (flow.projectId !== this.projectId) throw new Error('프로젝트가 변경되었습니다.');
     ensureProjectDirectory(this.root, '.workspace/flows');
@@ -69,6 +73,26 @@ export class UserFlowStore {
       (current && flow.revision !== expectedRevision)
     )
       throw new Error('플로우가 변경되었습니다. 최신 JSON을 다시 불러와 주세요.');
+    this.validateEvidence(flow);
+    const saved = this.version(flow);
+    const text = JSON.stringify(saved, null, 2) + '\n';
+    if (Buffer.byteLength(text, 'utf8') > 2_000_000)
+      throw new Error('플로우 JSON은 2MB 이하여야 합니다.');
+    if (commit) {
+      commit(saved, current ? readFileSync(path, 'utf8') : null, text);
+      return saved;
+    }
+    const temporary = safePath(this.root, `.workspace/flows/${flow.id}-${randomUUID()}.tmp`);
+    try {
+      writeFileSync(temporary, text, { encoding: 'utf8', flag: 'wx' });
+      renameSync(temporary, path);
+    } finally {
+      if (existsSync(temporary)) unlinkSync(temporary);
+    }
+    return saved;
+  }
+  validateEvidence(flow: UserFlow) {
+    if (flow.projectId !== this.projectId) throw new Error('프로젝트가 변경되었습니다.');
     for (const item of [...flow.nodes, ...flow.edges])
       for (const evidence of item.evidence) {
         const doc = this.documents.find((doc) => doc.id === evidence.documentId);
@@ -96,18 +120,6 @@ export class UserFlowStore {
             throw new Error('문서 근거가 해당 섹션 범위를 벗어났습니다.');
         }
       }
-    const saved = this.version(flow);
-    const text = JSON.stringify(saved, null, 2) + '\n';
-    if (Buffer.byteLength(text, 'utf8') > 2_000_000)
-      throw new Error('플로우 JSON은 2MB 이하여야 합니다.');
-    const temporary = safePath(this.root, `.workspace/flows/${flow.id}-${randomUUID()}.tmp`);
-    try {
-      writeFileSync(temporary, text, { encoding: 'utf8', flag: 'wx' });
-      renameSync(temporary, path);
-    } finally {
-      if (existsSync(temporary)) unlinkSync(temporary);
-    }
-    return saved;
   }
   importMermaid(source: ProjectFlow) {
     const simple = parseSimpleFlow(source.code);

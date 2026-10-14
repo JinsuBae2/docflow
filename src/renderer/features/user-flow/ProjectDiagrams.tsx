@@ -7,6 +7,7 @@ import type { FlowEvidence } from '../../../shared/user-flow';
 export function ProjectDiagrams(
   props: ComponentProps<typeof Diagram> & {
     workspace: Workspace;
+    onRequestFlow?: (flowId: string | null) => void;
     onEvidence: (evidence: FlowEvidence) => void;
     userFlowFocus?: { flowId: string; nodeId: string };
   },
@@ -47,6 +48,7 @@ export function ProjectDiagrams(
       ) : (
         <UserFlowWorkspace
           workspace={props.workspace}
+          onRequestFlow={props.onRequestFlow}
           onRefresh={props.onRefresh}
           onEvidence={props.onEvidence}
           onDirty={onDirty}

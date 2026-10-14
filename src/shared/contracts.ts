@@ -189,7 +189,7 @@ export interface RelationDraft {
   toRevision: Revision;
 }
 export interface ProposalDraft {
-  kind: 'create' | 'update' | 'diagram' | 'decision' | 'relation';
+  kind: 'create' | 'update' | 'diagram' | 'decision' | 'relation' | 'flow';
   title: string;
   documentType: DocumentType;
   targetId: Id | null;
@@ -200,8 +200,10 @@ export interface ProposalDraft {
   dependencyIds: Id[];
   scopedSourceId?: Id | null;
   relation?: RelationDraft;
+  flow?: UserFlow;
 }
 export interface Proposal extends ProposalDraft {
+  baseFlow?: UserFlow | null;
   sourceRanges?: Array<{ id: Id; documentId: Id; start: number; end: number }>;
   id: Id;
   requestId: Id;
@@ -211,6 +213,7 @@ export interface Proposal extends ProposalDraft {
   rejectionReason?: string;
   replacesId?: Id;
   resultDocumentId?: Id;
+  resultFlowId?: Id;
 }
 export interface RejectionFeedback {
   id: Id;
@@ -231,6 +234,8 @@ export interface ContextSource {
   range?: { start: number; end: number };
 }
 export interface ContextSnapshot {
+  flowEstimate?: { inputTokens: number };
+  flowContext?: { flowId: string; projectId: string; baseFlow: UserFlow | null };
   budget?: AnalysisBudget;
   id: Id;
   requestId: Id;
@@ -316,6 +321,7 @@ export interface ProjectFlow {
   contentEnd?: number;
 }
 export interface ContextInput {
+  flowId?: string | null;
   instruction: string;
   selectedIds: Id[];
   excludedIds: Id[];
@@ -432,7 +438,7 @@ export interface WorkspaceApi {
   startAnalysis(id: Id): Promise<Id>;
   startRequest(input: ContextInput, replacesId?: Id): Promise<Id>;
   cancelRequest(): Promise<void>;
-  acceptProposal(id: Id): Promise<Workspace>;
+  acceptProposal(id: Id, laidFlow?: UserFlow, projectRoot?: string): Promise<Workspace>;
   rejectProposal(id: Id, reason?: string): Promise<Workspace>;
   sendRejection(
     proposalId: Id,

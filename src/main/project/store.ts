@@ -27,6 +27,7 @@ import { discoverDocuments, checkDocumentPath } from './discovery';
 import { indexDocumentLinks } from './links';
 import { indexProjectFlows } from './flows';
 import { UserFlowStore } from './user-flows';
+import type { UserFlow } from '../../shared/user-flow';
 import { parseSimpleFlow } from '../../shared/flows';
 import { ensureProjectDirectory, safePath, readDocumentFile, fileIdentity } from './files';
 import { commitFile, recoverPendingOperations, type RecoveryOperation } from './recovery';
@@ -99,14 +100,16 @@ export class ProjectStore {
   private persistOperation(op: RecoveryOperation) {
     this.db.exec('BEGIN IMMEDIATE');
     try {
-      this.put('document', op.record as DocumentRecord);
+      if (op.recordKind !== 'flow') this.put('document', op.record as DocumentRecord);
       if (op.proposalId) {
         const proposal = this.get<Proposal>('proposal', op.proposalId);
         if (proposal)
           this.put('proposal', {
             ...proposal,
             status: 'accepted',
-            resultDocumentId: (op.record as DocumentRecord).id,
+            ...(op.recordKind === 'flow'
+              ? { resultFlowId: (op.record as UserFlow).id }
+              : { resultDocumentId: (op.record as DocumentRecord).id }),
           });
       }
       this.db.exec('COMMIT');
@@ -242,6 +245,33 @@ export class ProjectStore {
       failAt,
     );
     return doc;
+  }
+  saveUserFlowProposal(
+    flow: UserFlow,
+    expectedRevision: string | null,
+    proposalId: string,
+    failAt?: 'prepared' | 'replaced',
+  ) {
+    const project = this.all<Project>('project')[0];
+    return new UserFlowStore(this.root, project.id, this.listDocuments()).save(
+      flow,
+      expectedRevision,
+      (saved, before, after) => {
+        commitFile(
+          this.root,
+          {
+            path: `.workspace/flows/${saved.id}.json`,
+            before,
+            after,
+            record: saved,
+            recordKind: 'flow',
+            proposalId,
+          },
+          (op) => this.persistOperation(op),
+          failAt,
+        );
+      },
+    );
   }
   async createFromProposal(proposal: Proposal): Promise<Document> {
     const doc = parseDocument(proposal.replacement, undefined, true);

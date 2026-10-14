@@ -173,6 +173,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
             },
           ];
         }
+        if (context.flowContext) proposals = require('./flow-response.cjs')(context).proposals;
         if (context.rejectedProposal) proposals = proposals.slice(0, 1);
         if (context.budget && context.instruction === '대형 프로젝트 범위 검증') proposals = [];
         const item = {

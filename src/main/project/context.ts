@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { UserFlowStore } from './user-flows';
+import { flowInstructions } from '../ai/instructions';
+import { flowOutputSchema } from '../../shared/proposal-schema';
 import type {
   ContextInput,
   ContextSnapshot,
@@ -25,7 +28,32 @@ export async function buildContext(
     throw new Error('거절 피드백 맥락을 확인해 주세요.');
   if (replacesId && (!revisionProposal || !['pending', 'stale'].includes(revisionProposal.status)))
     throw new Error('수정 요청할 대기 제안을 찾을 수 없습니다.');
-  if (revisionProposal?.targetId) selected.add(revisionProposal.targetId);
+  if (revisionProposal?.targetId && revisionProposal.kind !== 'flow')
+    selected.add(revisionProposal.targetId);
+  const previousFlowProposal =
+    revisionProposal?.kind === 'flow'
+      ? revisionProposal
+      : rejected?.kind === 'flow'
+        ? rejected
+        : undefined;
+  const previousSnapshot = previousFlowProposal
+    ? store.get<ContextSnapshot>('context', previousFlowProposal.snapshotId)
+    : undefined;
+  if (previousSnapshot) for (const source of previousSnapshot.sources) selected.add(source.id);
+  const flowId = previousSnapshot?.flowContext?.flowId ?? input.flowId;
+  const flowContext =
+    flowId !== undefined
+      ? {
+          flowId: flowId || randomUUID(),
+          projectId: ws.project.id,
+          baseFlow:
+            flowId && ws.userFlows?.some((flow) => flow.id === flowId)
+              ? new UserFlowStore(store.root, ws.project.id, ws.documents).read(flowId)
+              : null,
+        }
+      : undefined;
+  if (input.flowId && !flowContext?.baseFlow && !previousFlowProposal)
+    throw new Error('수정할 플로우를 찾을 수 없습니다.');
   const docFor = (id: string) =>
     ws.documents.find((d) => d.id === id || d.sections.some((s) => s.id === id));
   for (const id of selected)
@@ -72,6 +100,7 @@ export async function buildContext(
     instruction: input.instruction,
     project,
     sources,
+    ...(flowContext ? { flowContext } : {}),
     decisions: ws.decisions,
     proposalHistory: ws.proposals
       .filter((p) => ['accepted', 'rejected'].includes(p.status))
@@ -173,6 +202,14 @@ export async function buildContext(
   }
   if (JSON.stringify(snapshot).length > limit)
     throw new Error('필수 맥락이 너무 큽니다. 선택 범위를 줄여 주세요.');
+  if (snapshot.flowContext)
+    snapshot.flowEstimate = {
+      inputTokens:
+        Buffer.byteLength(JSON.stringify(snapshot), 'utf8') +
+        Buffer.byteLength(JSON.stringify(flowOutputSchema), 'utf8') +
+        2 * Buffer.byteLength(flowInstructions, 'utf8') +
+        100,
+    };
   store.saveSnapshot(snapshot);
   return snapshot;
 }

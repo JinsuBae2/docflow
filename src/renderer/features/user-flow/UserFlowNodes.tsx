@@ -2,11 +2,13 @@ import { useLayoutEffect } from 'react';
 import { Handle, Position, useUpdateNodeInternals, type Node, type NodeProps } from '@xyflow/react';
 import { Database, MousePointer2, GitFork } from 'lucide-react';
 import type { Document } from '../../../shared/contracts';
+import type { FlowChange } from '../../../shared/flow-proposal-preview';
 import type { FlowEvidence, UserFlowNode } from '../../../shared/user-flow';
 
 export type SemanticFlowNode = Node<
   {
     node: UserFlowNode;
+    change?: FlowChange;
     documents: Document[];
     inputs: string[];
     outputs: Array<{ id: string; label?: string }>;
@@ -17,7 +19,7 @@ export type SemanticFlowNode = Node<
 >;
 
 export function UserFlowNodeCard({ data }: NodeProps<SemanticFlowNode>) {
-  const { node, documents, inputs, outputs } = data;
+  const { node, documents, inputs, outputs, change } = data;
   const updateNodeInternals = useUpdateNodeInternals();
   const handles = JSON.stringify({ inputs, outputs, collapsed: node.collapsed });
   useLayoutEffect(() => {
@@ -33,7 +35,9 @@ export function UserFlowNodeCard({ data }: NodeProps<SemanticFlowNode>) {
   };
   return (
     <div
-      className={`user-flow-card user-flow-${node.type} ${node.collapsed ? 'is-collapsed' : ''}`}
+      className={`user-flow-card user-flow-${node.type} ${node.collapsed ? 'is-collapsed' : ''} ${change ? `flow-diff-${change.status}` : ''}`}
+      title={change?.summary || undefined}
+      data-diff={change?.status}
     >
       <div className="user-flow-card-header">
         {node.type === 'page' && (
@@ -58,6 +62,11 @@ export function UserFlowNodeCard({ data }: NodeProps<SemanticFlowNode>) {
           </button>
         )}
       </div>
+      {change && change.status !== 'unchanged' && (
+        <span className="flow-change-badge">
+          {{ added: '추가됨', modified: '수정됨', deleted: '삭제됨' }[change.status]}
+        </span>
+      )}
       <strong title={node.data.label}>{node.data.label}</strong>
       {node.type !== 'group' && node.data.description && <p>{node.data.description}</p>}
       {node.type === 'page' && !!node.data.components?.length && (

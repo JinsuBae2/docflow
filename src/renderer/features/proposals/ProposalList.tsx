@@ -12,6 +12,8 @@ import {
   BookmarkCheck,
   ArrowUpRight,
 } from 'lucide-react';
+import { FlowProposalReview } from '../user-flow/FlowProposalReview';
+import type { UserFlow } from '../../../shared/user-flow';
 import type { Proposal, Workspace } from '../../../shared/contracts';
 const statuses = {
   pending: '검토 대기',
@@ -32,13 +34,14 @@ function ProposalItem({
 }: {
   proposal: Proposal;
   workspace: Workspace;
-  onAccept: (id: string) => void;
+  onAccept: (id: string, flow?: UserFlow) => void;
   onReject: (id: string, reason: string, feedbackId: string) => Promise<boolean>;
   onRetry: (id: string) => void;
   disabled: boolean;
   onRevise: (proposal: Proposal, text: string) => void;
   onSource: (id: string) => void;
 }) {
+  const [flowReview, setFlowReview] = useState(false);
   const [expanded, setExpanded] = useState(p.status === 'pending');
   const [reason, setReason] = useState('');
   const [mode, setMode] = useState<'none' | 'reject' | 'revise'>('none');
@@ -53,7 +56,7 @@ function ProposalItem({
   const icon =
     p.kind === 'create' ? (
       <FilePlus2 size={15} />
-    ) : p.kind === 'diagram' || p.kind === 'relation' ? (
+    ) : p.kind === 'diagram' || p.kind === 'relation' || p.kind === 'flow' ? (
       <GitBranch size={15} />
     ) : p.kind === 'decision' ? (
       <BookmarkCheck size={15} />
@@ -69,6 +72,17 @@ function ProposalItem({
     );
   return (
     <section className={'proposal-item proposal-' + p.status}>
+      {flowReview && p.kind === 'flow' && ['pending', 'stale'].includes(p.status) && (
+        <FlowProposalReview
+          proposal={p}
+          workspace={workspace}
+          disabled={disabled}
+          onClose={() => setFlowReview(false)}
+          onAccept={onAccept}
+          onReject={onReject}
+          onSource={onSource}
+        />
+      )}
       <button className="proposal-heading" onClick={() => setExpanded(!expanded)}>
         {icon}
         <strong>{p.title}</strong>
@@ -77,12 +91,14 @@ function ProposalItem({
       <div className="proposal-meta">
         <span className={'status-pill status-' + p.status}>{statuses[p.status]}</span>
         <span>
-          {target?.title ||
-            (p.kind === 'decision'
-              ? '프로젝트 결정'
-              : p.kind === 'relation'
-                ? '문서 연결'
-                : '새 문서')}
+          {p.kind === 'flow'
+            ? '유저플로우'
+            : target?.title ||
+              (p.kind === 'decision'
+                ? '프로젝트 결정'
+                : p.kind === 'relation'
+                  ? '문서 연결'
+                  : '새 문서')}
         </span>
       </div>
       {expanded && (
@@ -112,7 +128,11 @@ function ProposalItem({
               </button>
             ))}
           </div>
-          {p.status === 'pending' || p.status === 'stale' ? (
+          {p.kind === 'flow' && (p.status === 'pending' || p.status === 'stale') ? (
+            <button className="button primary" onClick={() => setFlowReview(true)}>
+              캔버스 Diff 검토
+            </button>
+          ) : p.status === 'pending' || p.status === 'stale' ? (
             <div className="proposal-diff" aria-label="변경 전후">
               {diffLines(before, p.replacement).map((part, index) => (
                 <pre
@@ -174,7 +194,7 @@ function ProposalItem({
                 </div>
               )}
               <div className="proposal-actions">
-                {p.status === 'pending' && (
+                {p.status === 'pending' && p.kind !== 'flow' && (
                   <button
                     className="button primary compact"
                     aria-label="제안 수락"

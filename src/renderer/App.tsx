@@ -128,6 +128,7 @@ export default function App() {
   const section = doc?.sections.find((s) => s.id === sectionId);
   const pending =
     workspace?.proposals.filter((p) => p.status === 'pending' || p.status === 'stale').length || 0;
+  const [flowRequestId, setFlowRequestId] = useState<string | null | undefined>();
   const [usageOpen, setUsageOpen] = useState(false);
   const [projects, setProjects] = useState<ProjectEntry[]>([]);
   const activeRootRef = useRef('');
@@ -146,6 +147,7 @@ export default function App() {
       setDirty(false);
       setSearch('');
       setContext(null);
+      setFlowRequestId(undefined);
       setUsageOpen(false);
       setRegistration(null);
       setExternalLink(null);
@@ -262,6 +264,7 @@ export default function App() {
       else setError(link.reason || '링크를 열 수 없습니다.');
     });
   const contextInput = (instruction = prompt): ContextInput => ({
+    ...(flowRequestId !== undefined ? { flowId: flowRequestId } : {}),
     instruction: instruction.trim() || '프로젝트 맥락 확인',
     selectedIds: [...new Set([...(doc ? [doc.id] : []), ...included])],
     excludedIds: excluded,
@@ -997,6 +1000,23 @@ export default function App() {
             <Diagram
               key={workspace.root}
               workspace={workspace}
+              onRequestFlow={(flowId) =>
+                void act(async () => {
+                  if (dirty || running)
+                    throw new Error('작성 중인 내용을 저장하고 AI 요청을 마친 뒤 진행해 주세요.');
+                  const instruction = flowId
+                    ? '문서 근거를 바탕으로 이 유저플로우를 보완해줘. 기존 ID와 수동 배치를 유지해줘.'
+                    : '선택한 문서에서 사용자 화면 이동·행동·조건 분기·시스템 처리를 유저플로우로 제안해줘.';
+                  const preview = await window.workspace.previewContext({
+                    ...contextInput(instruction),
+                    flowId,
+                  });
+                  setFlowRequestId(flowId);
+                  preparePrompt(instruction);
+                  setContext(preview);
+                  setModal('context');
+                })
+              }
               userFlowFocus={
                 userFlowFocus &&
                 workspace.userFlows?.some((flow) => flow.id === userFlowFocus.flowId)
@@ -1204,6 +1224,14 @@ export default function App() {
                 title={status.detail}
               />
             </div>
+            {flowRequestId !== undefined && (
+              <div className="flow-request-mode">
+                유저플로우 {flowRequestId ? '수정' : '생성'} 요청{' '}
+                <button className="text-button" onClick={() => setFlowRequestId(undefined)}>
+                  일반 대화로 전환
+                </button>
+              </div>
+            )}
             <div className="assistant-tabs">
               <button
                 className={panelTab === 'chat' ? 'active' : ''}
@@ -1223,8 +1251,12 @@ export default function App() {
             {panelTab === 'proposals' && workspace ? (
               <ProposalList
                 workspace={workspace}
-                onAccept={(id) =>
-                  void act(async () => update(await window.workspace.acceptProposal(id)))
+                onAccept={(id, flow) =>
+                  void act(async () => {
+                    if (flow && dirty)
+                      throw new Error('작성 중인 내용을 저장한 뒤 플로우를 수락해 주세요.');
+                    update(await window.workspace.acceptProposal(id, flow, workspace.root));
+                  })
                 }
                 disabled={running || busy}
                 onReject={(id, reason, feedbackId) => rejection(id, reason, feedbackId)}
@@ -1655,6 +1687,26 @@ export default function App() {
                   <p>{context.project.goal || '프로젝트 목표가 아직 없습니다.'}</p>
                   <span>{context.project.constraints}</span>
                 </div>
+                {context.flowContext && (
+                  <div className="flow-request-budget">
+                    <strong>
+                      {context.flowContext.baseFlow ? '유저플로우 수정' : '유저플로우 생성'} · 예상
+                      입력 {(context.flowEstimate?.inputTokens || 0).toLocaleString()} 토큰 ·{' '}
+                      {preferences.provider === 'claude'
+                        ? '출력 상한 8,192 토큰'
+                        : '출력은 Codex CLI 설정에 따름'}
+                    </strong>
+                    <p>
+                      파일 크기와 모델에 따라 AI 사용량이 증가할 수 있습니다. 표시 값은 추정치이며
+                      기존 플로우는 수락 전까지 변경하지 않습니다.
+                    </p>
+                    <textarea
+                      aria-label="플로우 요청 내용"
+                      value={prompt}
+                      onChange={(event) => setPrompt(event.target.value)}
+                    />
+                  </div>
+                )}
                 <h3>전달할 문서</h3>
                 {docs.map((d) => {
                   const active =
@@ -1722,7 +1774,19 @@ export default function App() {
                   </details>
                 ))}
                 <div className="modal-footer">
-                  <button className="button primary" onClick={() => setModal('none')}>
+                  {context.flowContext && (
+                    <button
+                      className="button primary"
+                      disabled={busy || running || !prompt.trim() || !context.sources.length}
+                      onClick={() => {
+                        setModal('none');
+                        void request(prompt);
+                      }}
+                    >
+                      검토한 맥락으로 플로우 요청
+                    </button>
+                  )}
+                  <button className="button" onClick={() => setModal('none')}>
                     확인
                   </button>
                 </div>

@@ -7,8 +7,8 @@ import type {
   UsageLimits,
   UsageReport,
 } from '../../shared/contracts';
-import { outputSchema, responseSchema } from '../../shared/proposal-schema';
-import { documentInstructions } from './instructions';
+import { outputSchema, flowOutputSchema, responseSchema } from '../../shared/proposal-schema';
+import { documentInstructions, flowInstructions } from './instructions';
 import { claudeLimits, normalizeClaudeUsage } from './usage';
 
 // The API accepts a subset of JSON Schema; full bounds remain enforced locally.
@@ -182,9 +182,14 @@ export class ClaudeProvider implements AiProvider {
         {
           model,
           max_tokens: context.budget?.outputTokens ?? 8192,
-          system: documentInstructions,
+          system: context.flowContext ? flowInstructions : documentInstructions,
           messages: [{ role: 'user', content: JSON.stringify(context) }],
-          output_config: { format: { type: 'json_schema', schema: apiSchema(outputSchema) } },
+          output_config: {
+            format: {
+              type: 'json_schema',
+              schema: apiSchema(context.flowContext ? flowOutputSchema : outputSchema),
+            },
+          },
         },
         signal,
       );
