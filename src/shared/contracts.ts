@@ -1,4 +1,5 @@
 import type { MapPosition, MapView, ProjectMap } from './project-map';
+import type { UserFlow } from './user-flow';
 export type Id = string;
 export type Revision = string;
 export interface ProjectEntry {
@@ -273,6 +274,8 @@ export interface Message {
   createdAt: string;
 }
 export interface Workspace {
+  userFlows?: UserFlow[];
+  userFlowIssues?: string[];
   mapView?: MapView;
   root: string;
   project: Project;
@@ -358,6 +361,12 @@ export interface RequestEvent {
   event: AiEvent;
 }
 export interface WorkspaceApi {
+  saveUserFlow(
+    flow: UserFlow,
+    expectedRevision: string | null,
+    projectRoot: string,
+  ): Promise<UserFlow>;
+  importUserFlow(sourceId: string, sourceRevision: string, projectRoot: string): Promise<UserFlow>;
   projectMap(): Promise<ProjectMap>;
   saveMapLayout(projectId: string, positions: MapPosition[]): Promise<ProjectMap>;
   saveMapView(

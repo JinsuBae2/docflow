@@ -2919,3 +2919,237 @@ button.document-link[data-link-status='missing-anchor'] {
   padding: 2px 4px;
   font-size: 10px;
 }
+
+/* Semantic user flows share Docflow's accent, border and text tokens. */
+.project-diagrams {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.diagram-mode-tabs {
+  display: flex;
+  gap: 8px;
+  padding: 12px 32px 0;
+  border-bottom: 1px solid var(--border);
+}
+.diagram-mode-tabs button {
+  padding: 12px 16px;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--muted);
+}
+.diagram-mode-tabs button[aria-selected='true'] {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+.user-flow-workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.user-flow-canvas {
+  height: 600px;
+  min-height: 420px;
+  position: relative;
+  background: #f8faff;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.user-flow-card {
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 16px;
+  background: white;
+  border: 1px solid #c6d3e4;
+  border-radius: 12px;
+  color: #1d2939;
+  font-size: 13px;
+  box-shadow: 0 2px 5px #152b4b08;
+}
+.user-flow-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  margin-bottom: 9px;
+  color: var(--muted);
+}
+.user-flow-card-header small {
+  font-size: 11px;
+}
+.user-flow-card-header button {
+  margin-left: auto;
+  font-size: 18px;
+}
+.user-flow-card strong {
+  display: block;
+  line-height: 1.4;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-flow-card p {
+  margin: 8px 0;
+  font-size: 11px;
+  color: var(--muted);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.user-flow-card ul {
+  padding-left: 16px;
+  margin: 8px 0;
+  font-size: 11px;
+}
+.user-flow-card li {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.user-flow-group {
+  background: #eaf0fc55;
+  border: 1px dashed #aebfda;
+  box-shadow: none;
+  border-radius: 16px;
+}
+.user-flow-group > strong {
+  position: absolute;
+  top: 17px;
+  left: 70px;
+  max-width: calc(100% - 120px);
+}
+.user-flow-group > .user-flow-evidence {
+  margin-top: 0;
+}
+.user-flow-group.is-collapsed > strong {
+  position: static;
+  max-width: 100%;
+}
+.user-flow-startEnd {
+  border-radius: 50px;
+  background: #edf2ff;
+  border-color: #b7c7f4;
+  text-align: center;
+  padding: 12px 22px;
+}
+.user-flow-startEnd .user-flow-card-header,
+.user-flow-startEnd .user-flow-evidence {
+  justify-content: center;
+}
+.user-flow-page .user-flow-card-header {
+  margin: -16px -16px 12px;
+  padding: 9px 14px;
+  background: #edf2f8;
+  border-bottom: 1px solid var(--border);
+  border-radius: 12px 12px 0 0;
+}
+.browser-dots {
+  font-size: 8px;
+  color: #a9b8cc;
+  letter-spacing: 2px;
+}
+.user-flow-action {
+  border-radius: 28px;
+  border-left: 4px solid var(--accent);
+}
+.user-flow-condition {
+  background: #fffaf0;
+  border-color: #dfc486;
+  border-radius: 6px 22px;
+}
+.user-flow-system {
+  background: #f1f7f6;
+  border-color: #a8c9c2;
+  border-top: 4px solid #5d8d80;
+}
+.user-flow-evidence {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  max-height: 38px;
+  overflow: auto;
+  margin-top: 9px;
+}
+.user-flow-evidence button,
+.inferred-badge {
+  font-size: 9px;
+  border-radius: 4px;
+  padding: 2px 5px;
+  border: 1px solid #c9d7ec;
+  background: #f3f7ff;
+  color: #315c96;
+}
+.inferred-badge,
+.user-flow-evidence .evidence-stale {
+  background: #fff4df;
+  border-color: #e5cd99;
+  color: #805b1c;
+}
+.user-flow-card .react-flow__handle {
+  width: 9px;
+  height: 9px;
+  background: #647c9d;
+  border: 2px solid white;
+}
+.user-flow-port-label {
+  position: absolute;
+  left: 12px;
+  top: -6px;
+  font-size: 10px;
+  white-space: nowrap;
+  background: white;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 4px;
+  color: #526071;
+}
+.user-flow-canvas .react-flow__node.selected > .user-flow-card {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.user-flow-import,
+.user-flow-import select {
+  display: block;
+  width: 100%;
+  margin-top: 16px;
+}
+.user-flow-json-editor {
+  padding: 20px;
+}
+.user-flow-json-editor textarea {
+  display: block;
+  width: 100%;
+  height: 420px;
+  resize: vertical;
+  font:
+    12px/1.6 ui-monospace,
+    monospace;
+  padding: 16px;
+}
+.user-flow-json-editor p,
+.user-flow-empty {
+  font-size: 12px;
+  color: var(--muted);
+}
+.user-flow-empty {
+  position: absolute;
+  inset: 45% 10% auto;
+  text-align: center;
+  pointer-events: none;
+}
+.user-flow-document-links {
+  border-top: 1px solid var(--border);
+  margin: 16px 28px;
+  padding-top: 16px;
+  max-height: 220px;
+  overflow: auto;
+}
+.user-flow-document-links button {
+  display: block;
+  margin-top: 6px;
+}

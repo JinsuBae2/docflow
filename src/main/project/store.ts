@@ -26,6 +26,7 @@ import { parseDocument, parseLinkedDocument, revisionOf } from './markdown';
 import { discoverDocuments, checkDocumentPath } from './discovery';
 import { indexDocumentLinks } from './links';
 import { indexProjectFlows } from './flows';
+import { UserFlowStore } from './user-flows';
 import { parseSimpleFlow } from '../../shared/flows';
 import { ensureProjectDirectory, safePath, readDocumentFile, fileIdentity } from './files';
 import { commitFile, recoverPendingOperations, type RecoveryOperation } from './recovery';
@@ -409,6 +410,11 @@ export class ProjectStore {
     const documents = this.listDocuments();
     const indexed = indexDocumentLinks(this.root, documents);
     const flowIndex = indexProjectFlows(this.root, documents);
+    const userFlowIndex = new UserFlowStore(
+      this.root,
+      this.all<Project>('project')[0].id,
+      documents,
+    ).list();
     const proposals = this.all<Proposal>('proposal');
     const staleDiagramIds = proposals
       .filter((p) => p.kind === 'diagram' && p.status === 'accepted' && p.resultDocumentId)
@@ -430,6 +436,8 @@ export class ProjectStore {
       documentLinks: indexed.links,
       documentAnchors: indexed.anchors,
       flows: flowIndex.flows,
+      userFlows: userFlowIndex.flows,
+      userFlowIssues: userFlowIndex.issues,
       flowIssues: flowIndex.issues,
       decisions: this.all<Decision>('decision'),
       proposals,
