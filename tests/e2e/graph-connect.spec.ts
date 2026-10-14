@@ -3,20 +3,37 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-async function drag(page: Page, from: string, to: string, handle = '.react-flow__handle-top') {
+async function drag(page: Page, from: string, to: string, handle = '.react-flow__handle-left') {
+  // A preceding connection gesture can pan the viewport near its boundary.
+  await page.locator('.react-flow__controls-fitview').click();
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
   const start = await page
     .locator('.react-flow__node')
+    .filter({ has: page.locator('.map-document') })
     .filter({ hasText: from })
-    .locator('.react-flow__handle-bottom')
+    .locator('.react-flow__handle-right')
     .boundingBox();
   const end = await page
     .locator('.react-flow__node')
+    .filter({ has: page.locator('.map-document') })
     .filter({ hasText: to })
     .locator(handle)
     .boundingBox();
   await page.mouse.move(start!.x + start!.width / 2, start!.y + start!.height / 2);
   await page.mouse.down();
   await page.mouse.move(end!.x + end!.width / 2, end!.y + end!.height / 2, { steps: 12 });
+  const currentEnd = await page
+    .locator('.react-flow__node')
+    .filter({ has: page.locator('.map-document') })
+    .filter({ hasText: to })
+    .locator(handle)
+    .boundingBox();
+  await page.mouse.move(
+    currentEnd!.x + currentEnd!.width / 2,
+    currentEnd!.y + currentEnd!.height / 2,
+  );
   await page.mouse.up();
 }
 

@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import type { MapView } from '../../shared/project-map';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, realpathSync } from 'node:fs';
 import { basename, relative } from 'node:path';
@@ -422,6 +423,7 @@ export class ProjectStore {
       .map((p) => p.resultDocumentId!);
     return {
       root: this.root,
+      mapView: this.get<MapView>('map-view', this.all<Project>('project')[0].id),
       project: this.all<Project>('project')[0],
       documents,
       relations: [...this.all<Relation>('relation'), ...indexed.relations],

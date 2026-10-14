@@ -23,9 +23,10 @@ try {
   await page.keyboard.press('Escape');
   await page.screenshot({ path: 'docs/images/workspace.png' });
   await page.getByRole('button', { name: '관계 지도', exact: true }).click();
-  await expect(page.locator('.react-flow__node')).toHaveCount(3);
+  await expect(page.locator('.map-document')).toHaveCount(3);
   await page.keyboard.press('Escape');
-  await page.screenshot({ path: 'docs/images/relationship-map.png' });
+  await expect(page.locator('.react-flow__edge-path').first()).toBeVisible();
+  await page.screenshot({ path: 'docs/images/project-map-layout.png' });
   await page.getByRole('button', { name: '다이어그램', exact: true }).click();
   await expect(page.locator('.diagram-canvas svg')).toBeVisible();
   await page.keyboard.press('Escape');

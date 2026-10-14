@@ -32,7 +32,7 @@ test('opens documents, reviews proposals, persists decisions and displays a rela
     await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
     await expect(page.getByRole('heading', { name: '프로젝트 개요', exact: true })).toBeVisible();
     await page.getByRole('button', { name: '관계 지도', exact: true }).click();
-    await expect(page.locator('.react-flow__node')).toHaveCount(3);
+    await expect(page.locator('.map-document')).toHaveCount(3);
     await page.getByRole('button', { name: '문서', exact: true }).click();
     await page.getByRole('textbox', { name: 'AI에게 요청' }).fill('누락된 예외 처리를 제안해줘');
     await page.getByRole('button', { name: '요청 보내기' }).click();
@@ -311,7 +311,7 @@ test('onboards, previews local imports without losing drafts, saves the CLI mode
     await expect(editor).toBeHidden();
     await page.screenshot({ path: 'outputs/improved-document.png', fullPage: true });
     await page.getByRole('button', { name: '관계 지도', exact: true }).click();
-    await expect(page.locator('.react-flow__node')).toHaveCount(5);
+    await expect(page.locator('.map-document')).toHaveCount(5);
     await page.keyboard.press('Escape');
     await page.screenshot({ path: 'outputs/improved-graph.png', fullPage: true });
     await app.close();
@@ -321,7 +321,7 @@ test('onboards, previews local imports without losing drafts, saves the CLI mode
     await page.getByRole('button', { name: 'AI 연결 설정', exact: true }).click();
     await expect(page.getByLabel('AI 모델')).toHaveValue('test-fast');
     await expect(page.getByRole('heading', { name: '문서 관계 지도', exact: true })).toBeVisible();
-    await expect(page.locator('.react-flow__node')).toHaveCount(5);
+    await expect(page.locator('.map-document')).toHaveCount(5);
     await page.getByRole('button', { name: '안내 닫기', exact: true }).click();
     await page.getByRole('button', { name: '문서', exact: true }).click();
     await expect(page.getByRole('heading', { name: '프로젝트 개요', exact: true })).toBeVisible();

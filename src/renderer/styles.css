@@ -2669,11 +2669,6 @@ button.document-link[data-link-status='missing-anchor'] {
 .doc-node .react-flow__handle.connectionindicator:hover,
 .doc-node .react-flow__handle.connectingto {
   background: #155eef;
-  transform: translate(-50%, 50%) scale(1.5);
-}
-.doc-node .react-flow__handle-top.connectionindicator:hover,
-.doc-node .react-flow__handle-top.connectingto {
-  transform: translate(-50%, -50%) scale(1.5);
 }
 .relation-row.selected {
   background: #edf4ff;
@@ -2831,4 +2826,96 @@ button.document-link[data-link-status='missing-anchor'] {
 }
 .analysis-content details p {
   overflow-wrap: anywhere;
+}
+
+.map-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 24px 12px;
+  flex-wrap: wrap;
+}
+.map-toolbar input {
+  width: 200px;
+}
+.map-toolbar small {
+  color: var(--muted);
+}
+.map-toolbar [role='alert'] {
+  color: #b42318;
+}
+.graph-canvas {
+  position: relative;
+}
+.map-card {
+  padding: 12px 16px;
+  background: #fff;
+  border: 1px solid #bdc9db;
+  border-radius: 7px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 82px;
+}
+.map-card strong {
+  font-size: 14px;
+  line-height: 1.4;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.map-card small {
+  color: #526071;
+  font-size: 10px;
+}
+.map-root {
+  border-left: 4px solid #155eef;
+  background: #edf3ff;
+}
+.map-document {
+  border-left: 4px solid #526581;
+}
+.map-section {
+  border-left: 3px solid #c4d1e2;
+}
+.map-card .text-button {
+  font-size: 10px;
+  text-align: left;
+}
+.map-card .react-flow__handle {
+  width: 14px;
+  height: 14px;
+}
+.map-legend {
+  position: absolute;
+  right: 12px;
+  top: 12px;
+  z-index: 5;
+  background: #fffffff2;
+  border: 1px solid #d0d8e5;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 11px;
+  box-shadow: 0 2px 6px #1d293910;
+}
+.map-legend p {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
+}
+.legend-line {
+  width: 26px;
+  border-top: 2px solid #526581;
+}
+.legend-line.dashed {
+  border-top-style: dashed;
+}
+.map-pending-badge {
+  color: #1763ef;
+  border: 1px solid #b1c6ff;
+  border-radius: 4px;
+  padding: 2px 4px;
+  font-size: 10px;
 }

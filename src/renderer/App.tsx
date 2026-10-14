@@ -1550,11 +1550,16 @@ export default function App() {
                         setRelationTarget(docs.find((d) => d.id !== e.target.value)?.id || '');
                     }}
                   >
-                    {docs.map((d) => (
+                    {docs.flatMap((d) => [
                       <option key={d.id} value={d.id}>
                         {d.title}
-                      </option>
-                    ))}
+                      </option>,
+                      ...d.sections.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {d.title} › {s.title}
+                        </option>
+                      )),
+                    ])}
                   </select>
                 </label>
                 <label>
@@ -1564,10 +1569,14 @@ export default function App() {
                     onChange={(e) => setRelationTarget(e.target.value)}
                   >
                     {docs
-                      .filter((d) => d.id !== relationSource)
-                      .map((d) => (
-                        <option key={d.id} value={d.id}>
-                          {d.title}
+                      .flatMap((d) => [
+                        { id: d.id, title: d.title },
+                        ...d.sections.map((s) => ({ id: s.id, title: `${d.title} › ${s.title}` })),
+                      ])
+                      .filter((item) => item.id !== relationSource)
+                      .map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.title}
                         </option>
                       ))}
                   </select>
