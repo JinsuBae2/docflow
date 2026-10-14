@@ -1,3 +1,4 @@
+import type { MapPosition, MapView, ProjectMap } from './project-map';
 export type Id = string;
 export type Revision = string;
 export interface ProjectEntry {
@@ -272,6 +273,7 @@ export interface Message {
   createdAt: string;
 }
 export interface Workspace {
+  mapView?: MapView;
   root: string;
   project: Project;
   documents: Document[];
@@ -356,6 +358,12 @@ export interface RequestEvent {
   event: AiEvent;
 }
 export interface WorkspaceApi {
+  projectMap(): Promise<ProjectMap>;
+  saveMapLayout(projectId: string, positions: MapPosition[]): Promise<ProjectMap>;
+  saveMapView(
+    projectId: string,
+    view: Pick<MapView, 'collapsedDocumentIds' | 'legendCollapsed'>,
+  ): Promise<ProjectMap>;
   listProjects(): Promise<ProjectEntry[]>;
   projectDocuments(id: Id): Promise<Array<Pick<Document, 'id' | 'title' | 'type'>>>;
   activateProject(id: Id): Promise<Workspace>;

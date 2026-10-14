@@ -5,6 +5,7 @@ import { projectRelativePath } from './project/files';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { ProjectStore } from './project/store';
+import { ProjectMapStore } from './project/map-store';
 import { ProjectRegistry } from './project/registry';
 import { ProposalService } from './project/proposals';
 import { FeedbackService } from './project/feedback';
@@ -47,6 +48,27 @@ const contextSchema = z
   })
   .strict();
 const schemas: Record<string, z.ZodType> = {
+  projectMap: z.tuple([]),
+  saveMapLayout: z.tuple([
+    id,
+    z
+      .array(
+        z
+          .object({
+            nodeId: id,
+            x: z.number().min(-1000000).max(1000000),
+            y: z.number().min(-1000000).max(1000000),
+          })
+          .strict(),
+      )
+      .max(20000),
+  ]),
+  saveMapView: z.tuple([
+    id,
+    z
+      .object({ collapsedDocumentIds: z.array(id).max(20000), legendCollapsed: z.boolean() })
+      .strict(),
+  ]),
   prepareAnalysis: z.tuple([
     contextSchema.extend({
       contextTokens: z.number().int().min(20000).max(200000).optional(),
@@ -482,6 +504,12 @@ export function registerWorkspace(window: BrowserWindow) {
       }
       case 'previewContext':
         return buildContext(args[0], requireStore());
+      case 'projectMap':
+        return new ProjectMapStore(requireStore()).read();
+      case 'saveMapLayout':
+        return new ProjectMapStore(requireStore()).saveLayout(args[0], args[1]);
+      case 'saveMapView':
+        return new ProjectMapStore(requireStore()).saveView(args[0], args[1]);
       case 'listAnalyses':
         return new AnalysisService(requireStore()).list();
       case 'prepareAnalysis': {
