@@ -1,5 +1,8 @@
 # Electron 문서 워크스페이스 Implementation Plan
 
+> 초기 설계 기록입니다. 당시의 계획과 완료 상태를 보존하며, 현재 화면과 지원 기능은 [워크스페이스 사용 가이드](workspace-guide.md)와 [README](../README.md)를 기준으로 확인하세요.
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. 직접 실행을 권장하며, 하위 에이전트는 사용자 요청 없이 사용하지 않는다.
 
 **Goal:** 로컬 문서를 시각적으로 탐색하고, 실제 Codex가 프로젝트 맥락으로 생성한 문서·보완 제안을 수락·거절하며 그 판단을 다음 요청에 반영하는 데스크톱 앱을 만든다.
