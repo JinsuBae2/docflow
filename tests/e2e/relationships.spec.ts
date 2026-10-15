@@ -18,6 +18,7 @@ test('previews AI relationship evidence, applies only reviewed links and edits c
     const page = await app.firstWindow();
     await page.getByRole('button', { name: '안내 닫기' }).click();
     await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
+    await page.getByRole('button', { name: '문서', exact: true }).click();
     await page.getByRole('button', { name: 'Markdown 편집', exact: true }).click();
     const original = await page.getByRole('textbox', { name: 'Markdown 본문' }).inputValue();
     await page.getByRole('textbox', { name: 'Markdown 본문' }).fill(original + '\n보존된 초안');

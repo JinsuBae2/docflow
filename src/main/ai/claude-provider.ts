@@ -1,3 +1,4 @@
+import { assertDocumentEvidence, contextPayload } from '../../shared/context-payload';
 import type { AiProvider } from './provider';
 import type {
   AiEvent,
@@ -169,6 +170,7 @@ export class ClaudeProvider implements AiProvider {
     this.measured = undefined;
     let reported = false;
     try {
+      assertDocumentEvidence(context);
       if (!model) throw new Error('연결 설정에서 Claude 모델을 선택해 주세요.');
       if (!(await this.models(signal)).some((item) => item.model === model))
         throw new Error('선택한 Claude 모델을 사용할 수 없습니다. 모델 목록을 다시 확인해 주세요.');
@@ -183,7 +185,7 @@ export class ClaudeProvider implements AiProvider {
           model,
           max_tokens: context.budget?.outputTokens ?? 8192,
           system: context.flowContext ? flowInstructions : documentInstructions,
-          messages: [{ role: 'user', content: JSON.stringify(context) }],
+          messages: [{ role: 'user', content: JSON.stringify(contextPayload(context)) }],
           output_config: {
             format: {
               type: 'json_schema',

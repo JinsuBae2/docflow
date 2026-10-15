@@ -3320,3 +3320,151 @@ button.document-link[data-link-status='missing-anchor'] {
 .flow-request-mode {
   padding: 8px 16px;
 }
+
+/* Project entry and source selection reuse workspace design tokens. */
+.project-briefing {
+  padding: 28px;
+  overflow: auto;
+  min-height: 0;
+  flex: 1;
+}
+.briefing-heading h1 {
+  margin: 10px 0;
+  font-size: 26px;
+}
+.briefing-heading p,
+.briefing-card p,
+.briefing-footnote {
+  color: var(--muted);
+  line-height: 1.6;
+}
+.briefing-eyebrow {
+  color: var(--accent);
+  font-size: 12px;
+}
+.briefing-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin: 20px 0;
+  font-size: 13px;
+}
+.briefing-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
+  gap: 16px;
+}
+.briefing-card {
+  padding: 18px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+  min-width: 0;
+}
+.briefing-card h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  margin: 0 0 12px;
+}
+.briefing-card p,
+.briefing-footnote {
+  font-size: 12px;
+}
+.briefing-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 0;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.briefing-link span {
+  min-width: 0;
+}
+.briefing-link strong {
+  display: block;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.briefing-link small {
+  display: block;
+  margin-top: 5px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.briefing-isolated {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 0;
+  padding: 7px 0;
+  color: var(--accent);
+  cursor: pointer;
+  text-align: left;
+}
+.briefing-link:hover,
+.briefing-isolated:hover {
+  color: var(--accent);
+}
+.context-selection {
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin-bottom: 16px;
+}
+.context-selection p,
+.context-selection li {
+  font-size: 12px;
+  line-height: 1.6;
+}
+.context-selection ul {
+  list-style: none;
+  padding: 0;
+  max-height: 240px;
+  overflow: auto;
+}
+.context-selection li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 0;
+}
+.context-selection small {
+  display: block;
+  color: var(--muted);
+}
+.context-selection summary {
+  cursor: pointer;
+  font-size: 12px;
+}
+.idea-mode {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 11px;
+  margin-bottom: 8px;
+}
+
+.sent-context {
+  font-size: 11px;
+  margin-bottom: 8px;
+  max-height: 240px;
+  overflow: auto;
+}
+.sent-context summary {
+  cursor: pointer;
+}
+.sent-context pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}

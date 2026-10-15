@@ -1,6 +1,7 @@
+import { assertDocumentEvidence, contextPayload } from '../../shared/context-payload';
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir, homedir } from 'node:os';
 import { join, dirname, isAbsolute } from 'node:path';
 import { existsSync, realpathSync } from 'node:fs';
@@ -55,6 +56,8 @@ export class CodexProvider implements AiProvider {
     private args = [
       'app-server',
       '--stdio',
+      '-c',
+      'project_doc_max_bytes=0',
       '-c',
       'features.shell_tool=false',
       '-c',
@@ -277,6 +280,7 @@ export class CodexProvider implements AiProvider {
     );
     signal.addEventListener('abort', cancel, { once: true });
     try {
+      assertDocumentEvidence(context);
       await this.connect();
       if (signal.aborted) {
         yield { type: 'cancelled' };
@@ -334,7 +338,13 @@ export class CodexProvider implements AiProvider {
       };
       const instructions = context.flowContext ? flowInstructions : documentInstructions;
       const inherited = await this.rpc('config/read', { includeLayers: false });
+      const instructionPath = join(this.directory!, 'docflow-instructions.md');
+      await writeFile(instructionPath, instructions, 'utf8');
       const overrides: Record<string, unknown> = {
+        project_doc_max_bytes: 0,
+        project_doc_fallback_filenames: [],
+        developer_instructions: instructions,
+        model_instructions_file: instructionPath,
         'features.shell_tool': false,
         'features.unified_exec': false,
         'features.apps': false,
@@ -363,7 +373,7 @@ export class CodexProvider implements AiProvider {
       }
       const turn = await this.rpc('turn/start', {
         threadId,
-        input: [{ type: 'text', text: JSON.stringify(context) }],
+        input: [{ type: 'text', text: JSON.stringify(contextPayload(context)) }],
         outputSchema: context.flowContext ? flowOutputSchema : outputSchema,
         permissions: 'docflow',
         approvalPolicy: 'never',
@@ -398,7 +408,12 @@ export class CodexProvider implements AiProvider {
     this.fail(new Error('연결 종료'));
     this.init = undefined;
     if (this.directory) {
-      await rm(this.directory, { recursive: true, force: true }).catch(() => {});
+      await rm(this.directory, {
+        recursive: true,
+        force: true,
+        maxRetries: 5,
+        retryDelay: 100,
+      }).catch(() => {});
       this.directory = undefined;
     }
   }

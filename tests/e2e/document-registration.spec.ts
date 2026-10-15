@@ -55,6 +55,7 @@ test('discovers originals on folder open, supports selection and manual registra
         window.workspace.current().then((workspace) => workspace?.documents.length),
       ),
     ).toBe(1);
+    await page.getByRole('button', { name: '문서', exact: true }).click();
     await page.getByRole('button', { name: 'Markdown 편집', exact: true }).click();
     await page.getByRole('textbox', { name: 'Markdown 본문' }).fill('# 기존 문서 초안');
     await page.getByRole('button', { name: '프로젝트 원본 문서 추가', exact: true }).click();
@@ -117,6 +118,7 @@ test('discovers originals on folder open, supports selection and manual registra
     await page.getByRole('button', { name: '변경 취소', exact: true }).click();
     await page.locator('.document-nav-item').filter({ hasText: '원본 A' }).click();
     await expect(page.getByText('원본 연결 · 저장 대상: docs/a.md', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: '문서', exact: true }).click();
     await page.getByRole('button', { name: 'Markdown 편집', exact: true }).click();
     await page.getByRole('textbox', { name: 'Markdown 본문' }).fill('# 원본 A\n명시적 수정');
     await page.getByRole('button', { name: '원본에 저장', exact: true }).click();
@@ -159,6 +161,7 @@ test('opens a dropped project folder and expires registration when the active pr
     await expect(dialog).toBeVisible();
     await dialog.getByRole('checkbox', { name: 'docs/flow.md', exact: true }).check();
     await dialog.getByRole('button', { name: '1개 원본 문서 등록', exact: true }).click();
+    await page.getByRole('button', { name: '문서', exact: true }).click();
     await expect(page.getByRole('heading', { name: '드롭한 프로젝트', exact: true })).toBeVisible();
     const result = await page.evaluate(async () => {
       const api = window.workspace;

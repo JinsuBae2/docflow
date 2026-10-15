@@ -233,7 +233,23 @@ export interface ContextSource {
   complete?: boolean;
   range?: { start: number; end: number };
 }
+export interface ContextSelection {
+  mode: 'full' | 'excerpts';
+  limit: number;
+  usedCharacters: number;
+  estimatedInputTokens: number;
+  omitted: Array<{
+    documentId: Id;
+    sectionId?: Id;
+    title: string;
+    reason: 'excluded' | 'budget' | 'partial' | 'unrelated' | 'empty';
+  }>;
+  omittedDecisions: number;
+  omittedHistory: number;
+}
 export interface ContextSnapshot {
+  requiresEvidence?: boolean;
+  selection?: ContextSelection;
   flowEstimate?: { inputTokens: number };
   flowContext?: { flowId: string; projectId: string; baseFlow: UserFlow | null };
   budget?: AnalysisBudget;
@@ -321,6 +337,8 @@ export interface ProjectFlow {
   contentEnd?: number;
 }
 export interface ContextInput {
+  mode?: 'documents' | 'idea';
+  reviewedContextId?: Id;
   flowId?: string | null;
   instruction: string;
   selectedIds: Id[];
@@ -364,7 +382,7 @@ export interface AnalysisSummary {
 }
 export interface RequestEvent {
   requestId: Id;
-  event: AiEvent;
+  event: AiEvent | { type: 'context'; context: ContextSnapshot };
 }
 export interface WorkspaceApi {
   saveUserFlow(
@@ -432,7 +450,7 @@ export interface WorkspaceApi {
   connectDocuments(fromId: Id, toId: Id, type: string): Promise<Workspace>;
   removeRelation(id: Id): Promise<Workspace>;
   updateRelation(id: Id, type: string): Promise<Workspace>;
-  previewContext(input: ContextInput): Promise<ContextSnapshot>;
+  previewContext(input: ContextInput, replacesId?: Id): Promise<ContextSnapshot>;
   prepareAnalysis(input: AnalysisInput): Promise<AnalysisSummary>;
   listAnalyses(): Promise<AnalysisSummary[]>;
   startAnalysis(id: Id): Promise<Id>;

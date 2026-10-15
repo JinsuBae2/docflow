@@ -3,6 +3,65 @@ import { resolve } from 'node:path';
 import { CodexProvider } from '../../src/main/ai/codex-provider';
 
 describe('Codex provider', () => {
+  it('replaces inherited developer/system-file instructions and prevents AGENTS discovery', async () => {
+    const provider = new CodexProvider(process.execPath, [
+      resolve('tests/fixtures/fake-codex.cjs'),
+      'instruction-isolation',
+    ]);
+    try {
+      const events = [];
+      for await (const event of provider.run(
+        {
+          id: 'ctx',
+          requestId: 'req',
+          instruction: '아이디어',
+          selection: {
+            mode: 'full',
+            limit: 60000,
+            usedCharacters: 0,
+            estimatedInputTokens: 0,
+            omitted: [],
+            omittedDecisions: 0,
+            omittedHistory: 0,
+          },
+          sources: [],
+          decisions: [],
+          proposalHistory: [],
+          omittedIds: [],
+          project: { name: 'test', goal: '', constraints: '' },
+        },
+        new AbortController().signal,
+      ))
+        events.push(event);
+      expect(events.at(-1)).toMatchObject({ type: 'result' });
+    } finally {
+      await provider.close();
+    }
+  });
+  it('blocks empty document evidence before starting any CLI process', async () => {
+    const provider = new CodexProvider('/nonexistent/should-not-start');
+    const events = [];
+    for await (const event of provider.run(
+      {
+        id: 'ctx',
+        requestId: 'req',
+        instruction: '문서',
+        requiresEvidence: true,
+        sources: [],
+        decisions: [],
+        proposalHistory: [],
+        omittedIds: [],
+        project: { name: 'test', goal: '', constraints: '' },
+      },
+      new AbortController().signal,
+    ))
+      events.push(event);
+    expect(events.at(-1)).toMatchObject({
+      type: 'error',
+      message: expect.stringContaining('원문 근거'),
+    });
+    await provider.close();
+  });
   it.each([
     ['api-account', 'auth_mode'],
     ['no-account', 'auth_required'],

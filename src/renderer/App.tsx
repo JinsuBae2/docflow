@@ -1,3 +1,5 @@
+import { ProjectBriefing } from './features/briefing/ProjectBriefing';
+import { ContextSelection } from './features/context/ContextSelection';
 import { compareDocuments, displayDocumentType } from '../shared/document-presentation';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -88,6 +90,10 @@ export default function App() {
   const [sectionId, setSectionId] = useState('');
   const [userFlowFocus, setUserFlowFocus] = useState<{ flowId: string; nodeId: string }>();
   const [view, setView] = useState<'document' | 'graph' | 'diagram'>('document');
+  const [briefing, setBriefing] = useState(false);
+  const [diagramMode, setDiagramMode] = useState<'mermaid' | 'userflow'>();
+  const [ideaMode, setIdeaMode] = useState(false);
+  const [pendingContextRequest, setPendingContextRequest] = useState<{ replacesId?: string }>();
   const [flowEditing, setFlowEditing] = useState(false);
   const [flowSourceLine, setFlowSourceLine] = useState(0);
   const [panelTab, setPanelTab] = useState<'chat' | 'proposals'>('chat');
@@ -109,6 +115,7 @@ export default function App() {
   const [modal, setModal] = useState<'none' | 'new' | 'settings' | 'context' | 'relation'>('none');
   const [analysisOpen, setAnalysisOpen] = useState(false);
   const [analysisInstruction, setAnalysisInstruction] = useState('');
+  const [sentContext, setSentContext] = useState<ContextSnapshot | null>(null);
   const [context, setContext] = useState<ContextSnapshot | null>(null);
   const [excluded, setExcluded] = useState<string[]>([]);
   const [included, setIncluded] = useState<string[]>([]);
@@ -144,10 +151,15 @@ export default function App() {
       activeRootRef.current = next?.root || '';
       setSelectedId(next?.session?.selectedId || '');
       setView(next?.session?.view || 'document');
+      setBriefing(!!next && !next.session);
+      setIdeaMode(false);
+      setDiagramMode(undefined);
+      setPendingContextRequest(undefined);
       setPrompt(next?.session?.prompt || '');
       setDirty(false);
       setSearch('');
       setContext(null);
+      setSentContext(null);
       setFlowRequestId(undefined);
       setUsageOpen(false);
       setRegistration(null);
@@ -173,6 +185,7 @@ export default function App() {
         const preview = await window.workspace.previewProjectDocuments();
         if (preview.files.length || preview.warnings.length) setRegistration(preview);
       }
+      setBriefing(!selected && !next.session);
       if (selected) {
         setSelectedId(selected);
         setView('document');
@@ -219,9 +232,10 @@ export default function App() {
   const mayLeave = () =>
     !dirty || confirm('저장하지 않은 변경이 있습니다. 변경을 버리고 이동할까요?');
   const switchView = (next: typeof view) => {
-    if (next !== view && !mayLeave()) return;
+    if ((next !== view || briefing) && !mayLeave()) return;
     if (next !== view) setDirty(false);
     setView(next);
+    setBriefing(false);
   };
   const select = (id: string, next = workspace) => {
     const target = next?.documents.find((d) => d.id === id || d.sections.some((s) => s.id === id));
@@ -230,6 +244,7 @@ export default function App() {
     setSelectedId(target.id);
     setSectionId(id === target.id ? '' : id);
     setView('document');
+    setBriefing(false);
     setFlowSourceLine(0);
     if (target.id !== doc?.id) setDirty(false);
     if (id !== target.id)
@@ -266,11 +281,15 @@ export default function App() {
     });
   const contextInput = (instruction = prompt): ContextInput => ({
     ...(flowRequestId !== undefined ? { flowId: flowRequestId } : {}),
+    mode: ideaMode && flowRequestId === undefined ? 'idea' : 'documents',
     instruction: instruction.trim() || '프로젝트 맥락 확인',
-    selectedIds: [...new Set([...(doc ? [doc.id] : []), ...included])],
+    selectedIds:
+      ideaMode && flowRequestId === undefined
+        ? []
+        : [...new Set([...(doc ? [doc.id] : []), ...included])],
     excludedIds: excluded,
   });
-  const request = async (instruction = prompt, replacesId?: string) => {
+  const request = async (instruction = prompt, replacesId?: string, reviewedId?: string) => {
     if (!instruction.trim() || running) return;
     if (dirty) {
       setError('작성 중인 문서를 저장한 뒤 AI에 요청해 주세요.');
@@ -286,7 +305,27 @@ export default function App() {
       const input = contextInput(
         section ? instruction + '\n현재 집중 섹션: ' + section.title : instruction,
       );
-      requestIdRef.current = await window.workspace.startRequest(input, replacesId);
+      const preview = reviewedId
+        ? context
+        : await window.workspace.previewContext(input, replacesId);
+      if (!preview) throw new Error('요청 맥락을 다시 확인해 주세요.');
+      if (
+        !reviewedId &&
+        (preview.selection?.mode === 'excerpts' ||
+          (preview.requiresEvidence && !preview.sources.length))
+      ) {
+        setContext(preview);
+        setPendingContextRequest({ replacesId });
+        setModal('context');
+        setRunning(false);
+        return;
+      }
+      requestIdRef.current = await window.workspace.startRequest(
+        { ...input, reviewedContextId: reviewedId || preview.id },
+        replacesId,
+      );
+      setModal('none');
+      setPendingContextRequest(undefined);
       setPrompt('');
       update(await window.workspace.current());
     } catch (e) {
@@ -366,6 +405,10 @@ export default function App() {
       .catch((e) => setError(e.message));
     return window.workspace.onRequestEvent(({ requestId, event }) => {
       if (requestIdRef.current && requestIdRef.current !== requestId) return;
+      if (event.type === 'context') {
+        setSentContext(event.context);
+        return;
+      }
       if (event.type === 'progress') setProgress(event.text);
       else if (event.type === 'usage') return;
       else {
@@ -433,6 +476,7 @@ export default function App() {
   }, [dirty]);
   const openContext = () =>
     void act(async () => {
+      setPendingContextRequest(undefined);
       setContext(await window.workspace.previewContext(contextInput()));
       setModal('context');
     });
@@ -453,6 +497,8 @@ export default function App() {
           excludedIds: excluded,
         });
         setIncluded(selected);
+        setIdeaMode(false);
+        setPendingContextRequest({});
         preparePrompt(instruction);
         setContext(preview);
         setModal('context');
@@ -884,17 +930,32 @@ export default function App() {
                 프로젝트
                 <ChevronRight size={12} />
                 <span>
-                  {view === 'document'
-                    ? doc?.title || '문서'
-                    : view === 'graph'
-                      ? '문서 구조'
-                      : '사용자 흐름'}
+                  {briefing
+                    ? '브리핑'
+                    : view === 'document'
+                      ? doc?.title || '문서'
+                      : view === 'graph'
+                        ? '문서 구조'
+                        : '사용자 흐름'}
                 </span>
               </span>
             </div>
             <div className="view-tabs">
               <button
-                className={view === 'document' ? 'active' : ''}
+                aria-label="프로젝트 브리핑"
+                className={briefing ? 'active' : ''}
+                onClick={() => {
+                  if (mayLeave()) {
+                    setBriefing(true);
+                    setDirty(false);
+                  }
+                }}
+              >
+                <BookOpen size={14} />
+                <span>브리핑</span>
+              </button>
+              <button
+                className={!briefing && view === 'document' ? 'active' : ''}
                 aria-label="문서"
                 onClick={() => switchView('document')}
               >
@@ -902,7 +963,7 @@ export default function App() {
                 <span>문서</span>
               </button>
               <button
-                className={view === 'graph' ? 'active' : ''}
+                className={!briefing && view === 'graph' ? 'active' : ''}
                 aria-label="문서 구조"
                 onClick={() => switchView('graph')}
               >
@@ -910,7 +971,7 @@ export default function App() {
                 <span>문서 구조</span>
               </button>
               <button
-                className={view === 'diagram' ? 'active' : ''}
+                className={!briefing && view === 'diagram' ? 'active' : ''}
                 aria-label="사용자 흐름"
                 onClick={() => switchView('diagram')}
               >
@@ -978,6 +1039,23 @@ export default function App() {
                 <ArrowUpRight size={14} />
               </button>
             </div>
+          ) : briefing ? (
+            <ProjectBriefing
+              workspace={workspace}
+              onDocument={select}
+              onMap={() => switchView('graph')}
+              onFlows={(mode, flowId) => {
+                setDiagramMode(mode);
+                setUserFlowFocus(
+                  mode === 'userflow' ? { flowId: flowId || '', nodeId: '' } : undefined,
+                );
+                switchView('diagram');
+              }}
+              onReview={() => {
+                setPanelTab('proposals');
+                setAssistant(true);
+              }}
+            />
           ) : view === 'graph' ? (
             <ProjectGraph
               workspace={workspace}
@@ -1006,6 +1084,7 @@ export default function App() {
             <Diagram
               key={workspace.root}
               workspace={workspace}
+              initialMode={diagramMode}
               onRequestFlow={(flowId) =>
                 void act(async () => {
                   if (dirty || running)
@@ -1016,7 +1095,11 @@ export default function App() {
                   const preview = await window.workspace.previewContext({
                     ...contextInput(instruction),
                     flowId,
+                    mode: 'documents',
+                    selectedIds: [...new Set([...(doc ? [doc.id] : []), ...included])],
                   });
+                  setIdeaMode(false);
+                  setPendingContextRequest({});
                   setFlowRequestId(flowId);
                   preparePrompt(instruction);
                   setContext(preview);
@@ -1350,6 +1433,29 @@ export default function App() {
               </div>
             )}
             <div className="composer-area">
+              {sentContext && (
+                <details className="sent-context">
+                  <summary>이번 요청의 원문 근거</summary>
+                  <ContextSelection context={sentContext} />
+                  {sentContext.sources.map((source) => (
+                    <details key={source.id}>
+                      <summary>{source.title}</summary>
+                      <pre>{source.content}</pre>
+                    </details>
+                  ))}
+                </details>
+              )}
+              {workspace && (
+                <label className="idea-mode">
+                  <input
+                    type="checkbox"
+                    checked={ideaMode}
+                    disabled={running || flowRequestId !== undefined}
+                    onChange={(e) => setIdeaMode(e.target.checked)}
+                  />{' '}
+                  문서 없이 아이디어 상담
+                </label>
+              )}
               {workspace && (
                 <button className="context-chip" onClick={openContext}>
                   <Layers size={12} />
@@ -1516,6 +1622,7 @@ export default function App() {
                     setDirty(false);
                     setSelectedId(next.documents.at(-1)!.id);
                     setView('document');
+                    setBriefing(false);
                     setModal('none');
                   });
                 }}
@@ -1713,6 +1820,21 @@ export default function App() {
                     />
                   </div>
                 )}
+                <ContextSelection
+                  context={context}
+                  onExclude={(id) => {
+                    const nextExcluded = [...new Set([...excluded, id])];
+                    setExcluded(nextExcluded);
+                    void act(async () =>
+                      setContext(
+                        await window.workspace.previewContext(
+                          { ...contextInput(), excludedIds: nextExcluded },
+                          pendingContextRequest?.replacesId,
+                        ),
+                      ),
+                    );
+                  }}
+                />
                 <h3>전달할 문서</h3>
                 {docs.map((d) => {
                   const active =
@@ -1733,13 +1855,17 @@ export default function App() {
                           setIncluded(nextIncluded);
                           void act(async () =>
                             setContext(
-                              await window.workspace.previewContext({
-                                ...contextInput(),
-                                selectedIds: [
-                                  ...new Set([...(doc ? [doc.id] : []), ...nextIncluded]),
-                                ],
-                                excludedIds: nextExcluded,
-                              }),
+                              await window.workspace.previewContext(
+                                {
+                                  ...contextInput(),
+                                  selectedIds: [
+                                    ...new Set([...(doc ? [doc.id] : []), ...nextIncluded]),
+                                  ],
+                                  excludedIds: nextExcluded,
+                                  mode: 'documents',
+                                },
+                                pendingContextRequest?.replacesId,
+                              ),
                             ),
                           );
                         }}
@@ -1780,16 +1906,29 @@ export default function App() {
                   </details>
                 ))}
                 <div className="modal-footer">
-                  {context.flowContext && (
+                  {(context.flowContext || pendingContextRequest) && (
                     <button
                       className="button primary"
-                      disabled={busy || running || !prompt.trim() || !context.sources.length}
+                      disabled={
+                        busy ||
+                        running ||
+                        !prompt.trim() ||
+                        (!!context.requiresEvidence && !context.sources.length)
+                      }
                       onClick={() => {
-                        setModal('none');
-                        void request(prompt);
+                        void request(
+                          prompt,
+                          pendingContextRequest?.replacesId,
+                          context.instruction ===
+                            contextInput(
+                              section ? prompt + '\n현재 집중 섹션: ' + section.title : prompt,
+                            ).instruction
+                            ? context.id
+                            : undefined,
+                        );
                       }}
                     >
-                      검토한 맥락으로 플로우 요청
+                      {context.flowContext ? '검토한 맥락으로 플로우 요청' : '검토한 근거로 요청'}
                     </button>
                   )}
                   <button className="button" onClick={() => setModal('none')}>

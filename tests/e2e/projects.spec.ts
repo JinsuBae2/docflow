@@ -53,6 +53,7 @@ test('switches project sections and restores unsaved Markdown and chat input aft
         .locator('.inactive-project-docs')
         .getByRole('button', { name: 'Beta 새 문서', exact: true }),
     ).toBeVisible();
+    await page.getByRole('button', { name: '문서', exact: true }).click();
     await page.getByRole('button', { name: 'Markdown 편집', exact: true }).click();
     await page
       .getByRole('textbox', { name: 'Markdown 본문' })

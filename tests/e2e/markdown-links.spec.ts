@@ -38,6 +38,7 @@ test('navigates original inline/reference anchors, registers linked files and ke
   };
   try {
     let page = await app.firstWindow();
+    await page.getByRole('button', { name: '문서', exact: true }).click();
     const body = () => page.locator('.document-surface .prose');
     await expect(body().getByRole('button', { name: '내부 이동', exact: true })).toBeVisible({
       timeout: 3000,

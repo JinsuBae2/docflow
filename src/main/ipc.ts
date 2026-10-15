@@ -1,3 +1,5 @@
+import { assertDocumentEvidence } from '../shared/context-payload';
+import { assertReviewedContext } from './project/context';
 import { app, BrowserWindow, dialog, ipcMain, safeStorage, shell } from 'electron';
 import { readFileSync, writeFileSync, existsSync, mkdirSync, lstatSync } from 'node:fs';
 import { join, basename } from 'node:path';
@@ -29,6 +31,7 @@ import type {
   ImportInput,
   AiProviderId,
   RequestUsage,
+  RequestEvent,
   UsageLimits,
 } from '../shared/contracts';
 import { normalizeCodexUsage } from './ai/usage';
@@ -44,6 +47,8 @@ const id = z.string().min(1).max(250);
 const contextSchema = z
   .object({
     flowId: id.nullable().optional(),
+    mode: z.enum(['documents', 'idea']).optional(),
+    reviewedContextId: id.optional(),
     instruction: z.string().min(1).max(10000),
     selectedIds: z.array(id).max(300),
     excludedIds: z.array(id).max(300),
@@ -155,7 +160,7 @@ const schemas: Record<string, z.ZodType> = {
   ]),
   connectDocuments: z.tuple([id, id, z.string().trim().min(1).max(100)]),
   removeRelation: z.tuple([id]),
-  previewContext: z.tuple([contextSchema]),
+  previewContext: z.tuple([contextSchema, id.optional()]),
   startRequest: z.tuple([contextSchema, id.optional()]),
   cancelRequest: z.tuple([]),
   acceptProposal: z.tuple([id, userFlowSchema.optional(), z.string().max(4000).optional()]),
@@ -223,7 +228,7 @@ export function registerWorkspace(window: BrowserWindow) {
       /* A missing last project must not prevent the app from opening. */
     }
   })();
-  const notify = (requestId: string, event: AiEvent) => {
+  const notify = (requestId: string, event: RequestEvent['event']) => {
     if (!window.isDestroyed()) window.webContents.send('workspace:event', { requestId, event });
   };
   ipcMain.handle('workspace:call', async (event, method: string, rawArgs: unknown[]) => {
@@ -508,7 +513,7 @@ export function registerWorkspace(window: BrowserWindow) {
         return true;
       }
       case 'previewContext':
-        return buildContext(args[0], requireStore());
+        return buildContext(args[0], requireStore(), args[1]);
       case 'projectMap':
         return new ProjectMapStore(requireStore()).read();
       case 'saveUserFlow': {
@@ -665,6 +670,14 @@ export function registerWorkspace(window: BrowserWindow) {
             replacesId,
             feedback?.id,
           );
+          assertDocumentEvidence(snapshot);
+          if (input.reviewedContextId) {
+            assertReviewedContext(
+              snapshot,
+              s.get<ContextSnapshot>('context', input.reviewedContextId),
+            );
+            s.saveSnapshot(snapshot);
+          }
           if (
             s
               .workspace()
@@ -716,6 +729,7 @@ export function registerWorkspace(window: BrowserWindow) {
           };
           try {
             s.saveUsage(usageRecord);
+            notify(requestId, { type: 'context', context: snapshot });
             for await (const aiEvent of client.run(
               snapshot,
               currentController.signal,
