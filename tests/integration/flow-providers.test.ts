@@ -31,7 +31,10 @@ it.each(['codex', 'claude'])(
   async (kind) => {
     const provider =
       kind === 'codex'
-        ? new CodexProvider(process.execPath, [resolve('tests/fixtures/fake-codex.cjs')])
+        ? new CodexProvider(process.execPath, [
+            resolve('tests/fixtures/fake-codex.cjs'),
+            'flow-null-fields',
+          ])
         : new ClaudeProvider(
             () => 'fixture',
             async (url) =>
@@ -41,7 +44,12 @@ it.each(['codex', 'claude'])(
                     ? { data: [{ id: 'test', display_name: 'Test' }], has_more: false }
                     : {
                         stop_reason: 'end_turn',
-                        content: [{ type: 'text', text: JSON.stringify(flowResponse(context)) }],
+                        content: [
+                          {
+                            type: 'text',
+                            text: JSON.stringify(withNullFields(flowResponse(context))),
+                          },
+                        ],
                       },
                 ),
               ),
@@ -62,3 +70,18 @@ it.each(['codex', 'claude'])(
     expect(events.some((event) => event.type === 'error')).toBe(false);
   },
 );
+
+function withNullFields(response: any) {
+  const node = response.proposals[0].flow.nodes[0];
+  Object.assign(node, {
+    parentId: null,
+    extent: null,
+    position: null,
+    width: null,
+    height: null,
+    collapsed: null,
+  });
+  Object.assign(node.data, { description: null, components: null, outputs: null });
+  response.proposals[0].scopedSourceId = null;
+  return response;
+}

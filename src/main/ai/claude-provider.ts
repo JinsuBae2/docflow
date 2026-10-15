@@ -8,7 +8,12 @@ import type {
   UsageLimits,
   UsageReport,
 } from '../../shared/contracts';
-import { outputSchema, flowOutputSchema, responseSchema } from '../../shared/proposal-schema';
+import {
+  outputSchema,
+  flowOutputSchema,
+  responseSchema,
+  normalizeAiResponse,
+} from '../../shared/proposal-schema';
 import { documentInstructions, flowInstructions } from './instructions';
 import { claudeLimits, normalizeClaudeUsage } from './usage';
 
@@ -211,7 +216,7 @@ export class ClaudeProvider implements AiProvider {
       )
         throw new Error('Claude 응답이 완성되지 않았습니다. 문서는 변경하지 않았습니다.');
       const parsed = responseSchema.safeParse(
-        JSON.parse(result.content.map((item: any) => item.text).join('')),
+        normalizeAiResponse(JSON.parse(result.content.map((item: any) => item.text).join(''))),
       );
       if (!parsed.success)
         throw new Error('Claude 응답 형식이 올바르지 않습니다. 문서는 변경하지 않았습니다.');

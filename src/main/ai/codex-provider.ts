@@ -12,7 +12,12 @@ import type {
   ProviderStatus,
   UsageLimits,
 } from '../../shared/contracts';
-import { outputSchema, flowOutputSchema, responseSchema } from '../../shared/proposal-schema';
+import {
+  outputSchema,
+  flowOutputSchema,
+  responseSchema,
+  normalizeAiResponse,
+} from '../../shared/proposal-schema';
 import type { AiProvider } from './provider';
 import { documentInstructions, flowInstructions } from './instructions';
 import { codexLimits, normalizeCodexUsage } from './usage';
@@ -322,7 +327,13 @@ export class CodexProvider implements AiProvider {
           }
           try {
             const text = [...items.values()].at(-1) || '';
-            push({ type: 'result', response: responseSchema.parse(JSON.parse(text)) }, true);
+            push(
+              {
+                type: 'result',
+                response: responseSchema.parse(normalizeAiResponse(JSON.parse(text))),
+              },
+              true,
+            );
           } catch {
             push(
               {
