@@ -8,27 +8,37 @@ const map: ProjectMap = {
   legendCollapsed: false,
   nodes: [
     { id: 'r', kind: 'root', origin: 'source', title: '루트' },
-    { id: 'a', kind: 'document', documentId: 'a', origin: 'source', title: '문서' },
-    { id: 'b', kind: 'document', documentId: 'b', origin: 'source', title: '문서' },
-    { id: 's1', kind: 'section', documentId: 'a', origin: 'source', title: '하나' },
-    { id: 's2', kind: 'section', documentId: 'a', origin: 'source', title: '둘' },
+    ...Array.from({ length: 24 }, (_, i) => ({
+      id: `d${i}`,
+      kind: 'document' as const,
+      origin: 'source' as const,
+      title: `문서 ${i}`,
+    })),
+    ...Array.from({ length: 720 }, (_, i) => ({
+      id: `s${i}`,
+      kind: 'section' as const,
+      documentId: `d${i % 24}`,
+      origin: 'source' as const,
+      title: '절',
+    })),
   ],
   edges: [],
 };
-it('lays out three columns with measured, non-overlapping section groups', () => {
-  const p = layoutProjectMap(map, { s1: { width: 230, height: 160 } });
-  expect(p.r.x).toBe(0);
-  expect(p.a.x).toBe(360);
-  expect(p.s1.x).toBe(760);
-  expect(p.s2.y).toBeGreaterThanOrEqual(p.s1.y + 160 + 24);
-  expect(p.b.y).toBeGreaterThan(p.s2.y);
+it('lays out document cards only in a balanced grid independent of section count', () => {
+  const p = layoutProjectMap(map, {});
+  expect(Object.keys(p)).toHaveLength(24);
+  expect(p.r).toBeUndefined();
+  expect(p.d1.x).toBeGreaterThan(p.d0.x);
+  expect(Math.max(...Object.values(p).map((v) => v.y))).toBeLessThan(2200);
 });
-it('preserves user positions while inserting new nodes and filters collapsed sections', () => {
-  const p = layoutProjectMap(
-    { ...map, positions: [{ nodeId: 'a', x: 234, y: 456 }], collapsedDocumentIds: ['a'] },
-    {},
-  );
-  expect(p.a).toEqual({ x: 234, y: 456 });
-  expect(p.s1).toBeUndefined();
-  expect(p.b.x).toBe(360);
+it('ignores legacy tree coordinates and preserves version 2 manual positions', () => {
+  const positions = [
+    { nodeId: 'd0', x: 234, y: 456 },
+    { nodeId: 's0', x: 760, y: 99999 },
+  ];
+  expect(layoutProjectMap({ ...map, positions }, {}).d0).toEqual({ x: 0, y: 0 });
+  expect(layoutProjectMap({ ...map, positions, layoutVersion: 2 }, {}).d0).toEqual({
+    x: 234,
+    y: 456,
+  });
 });

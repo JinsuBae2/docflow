@@ -104,9 +104,9 @@ export function Diagram({
     <div className="diagram-view">
       <div className="view-heading">
         <div>
-          <h1>프로젝트 흐름</h1>
+          <h1>문서 속 흐름</h1>
           <span>
-            문서 간 관계 지도와 별도로 사용자·시스템 흐름을 탐색합니다. 기존 흐름은 AI 없이
+            문서 간 문서 구조와 별도로 사용자·시스템 흐름을 탐색합니다. 기존 흐름은 AI 없이
             표시합니다.
           </span>
         </div>
@@ -116,7 +116,7 @@ export function Diagram({
         </button>
       </div>
       <div className="project-flows-body">
-        <aside className="flow-inventory" aria-label="프로젝트 흐름 목록">
+        <aside className="flow-inventory" aria-label="문서 속 흐름 목록">
           <input
             aria-label="흐름 검색"
             placeholder="문서·섹션·형식 검색"
@@ -271,7 +271,7 @@ export function Diagram({
           ) : (
             <div className="empty-state">
               <GitBranch size={32} />
-              <h3>{search ? '검색 결과가 없습니다' : '아직 프로젝트 흐름이 없습니다'}</h3>
+              <h3>{search ? '검색 결과가 없습니다' : '아직 문서 속 흐름이 없습니다'}</h3>
               <p>문서의 Mermaid 코드 또는 프로젝트 내부 정의 파일 링크를 추가하세요.</p>
               <button className="button" onClick={onGenerate}>
                 사용자 흐름 생성

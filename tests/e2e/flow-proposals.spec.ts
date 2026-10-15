@@ -18,7 +18,10 @@ test('reviews generated and modified flow diffs, accepts atomically and rejects 
     const page = await app.firstWindow();
     await page.getByRole('button', { name: '안내 닫기' }).click();
     await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
-    await page.getByRole('button', { name: '다이어그램', exact: true }).click();
+    await page
+      .locator('.view-tabs')
+      .getByRole('button', { name: '사용자 흐름', exact: true })
+      .click();
     await page.getByRole('tab', { name: '유저플로우', exact: true }).click();
     await page.getByRole('button', { name: 'AI로 플로우 생성', exact: true }).click();
     await expect(page.getByText(/예상 입력/)).toBeVisible();

@@ -13,7 +13,7 @@ export class ProjectMapStore {
   }
   saveLayout(projectId: string, positions: MapPosition[]) {
     const map = this.check(projectId);
-    const ids = new Set(map.nodes.map((n) => n.id));
+    const ids = new Set(map.nodes.filter((n) => n.kind === 'document').map((n) => n.id));
     if (
       new Set(positions.map((p) => p.nodeId)).size !== positions.length ||
       positions.some(
@@ -26,14 +26,24 @@ export class ProjectMapStore {
       )
     )
       throw new Error('지도 좌표 또는 노드가 올바르지 않습니다.');
-    const merged = new Map(map.positions.map((p) => [p.nodeId, p]));
+    const merged = new Map(
+      (map.layoutVersion === 2 ? map.positions : [])
+        .filter((p) => ids.has(p.nodeId))
+        .map((p) => [p.nodeId, p]),
+    );
     for (const p of positions) merged.set(p.nodeId, p);
-    this.store.put('map-view', {
-      id: projectId,
-      version: (map.version || 0) + 1,
-      positions: [...merged.values()],
-      collapsedDocumentIds: map.collapsedDocumentIds,
-      legendCollapsed: map.legendCollapsed,
+    this.store.transaction(() => {
+      const legacy = this.store.get<MapView & { id: string }>('map-view', projectId);
+      if (legacy && legacy.layoutVersion !== 2 && !this.store.get('map-view-v1', projectId))
+        this.store.put('map-view-v1', legacy);
+      this.store.put('map-view', {
+        id: projectId,
+        layoutVersion: 2,
+        version: (map.version || 0) + 1,
+        positions: [...merged.values()],
+        collapsedDocumentIds: map.collapsedDocumentIds,
+        legendCollapsed: map.legendCollapsed,
+      });
     });
     return this.read();
   }
@@ -48,6 +58,7 @@ export class ProjectMapStore {
     this.store.put('map-view', {
       id: projectId,
       version: (map.version || 0) + 1,
+      layoutVersion: map.layoutVersion,
       positions: map.positions,
       ...view,
       collapsedDocumentIds: [...new Set(view.collapsedDocumentIds)],

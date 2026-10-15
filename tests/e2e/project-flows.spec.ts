@@ -28,8 +28,11 @@ test('browses local diagram families and definitions, edits a basic flow and pre
   });
   try {
     const page = await app.firstWindow();
-    await page.getByRole('button', { name: '다이어그램', exact: true }).click();
-    await expect(page.getByRole('heading', { name: '프로젝트 흐름', exact: true })).toBeVisible({
+    await page
+      .locator('.view-tabs')
+      .getByRole('button', { name: '사용자 흐름', exact: true })
+      .click();
+    await expect(page.getByRole('heading', { name: '문서 속 흐름', exact: true })).toBeVisible({
       timeout: 3000,
     });
     const choose = async (title: string) =>
@@ -52,7 +55,10 @@ test('browses local diagram families and definitions, edits a basic flow and pre
     await choose('로그인');
     await page.getByRole('button', { name: '원문 위치로 이동', exact: true }).click();
     await expect(page.locator('.flow-source-highlight')).toBeInViewport();
-    await page.getByRole('button', { name: '다이어그램', exact: true }).click();
+    await page
+      .locator('.view-tabs')
+      .getByRole('button', { name: '사용자 흐름', exact: true })
+      .click();
     await choose('로그인');
     await page.getByRole('button', { name: '기본 흐름 편집', exact: true }).click();
     await page.getByRole('textbox', { name: '단계 이름 A', exact: true }).fill('변경한 시작');

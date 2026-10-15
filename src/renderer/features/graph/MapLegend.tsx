@@ -13,11 +13,11 @@ export function MapLegend({ collapsed, onToggle }: { collapsed: boolean; onToggl
         <>
           <p>
             <i className="legend-line" />
-            실선 — 문서 구조
+            실선 — 확정 연결
           </p>
           <p>
             <i className="legend-line dashed" />
-            점선 — 문맥 관계
+            점선 — AI 제안
           </p>
           <p>
             <span className="map-pending-badge">AI 제안</span> 미확정

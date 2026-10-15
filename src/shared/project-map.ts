@@ -34,6 +34,7 @@ export interface MapEdge {
   evidence?: MapEvidence[];
 }
 export interface MapView {
+  layoutVersion?: number;
   version?: number;
   positions: MapPosition[];
   collapsedDocumentIds: string[];
@@ -127,6 +128,7 @@ export function buildProjectMap(workspace: Workspace): ProjectMap {
   return {
     projectId: workspace.project.id,
     version: workspace.mapView?.version || 0,
+    layoutVersion: workspace.mapView?.layoutVersion,
     nodes,
     edges,
     positions: workspace.mapView?.positions || [],

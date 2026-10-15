@@ -2,7 +2,7 @@ import { test, expect, _electron as electron } from '@playwright/test';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-test('shows root/documents/sections, persists dragged cards, folds sections and fixes the legend to the viewport', async () => {
+test('shows document cards with embedded sections, persists dragged cards, folds sections and fixes the legend to the viewport', async () => {
   const data = await mkdtemp(join(tmpdir(), 'docflow-project-map-'));
   const launch = () =>
     electron.launch({
@@ -20,10 +20,10 @@ test('shows root/documents/sections, persists dragged cards, folds sections and 
     let page = await app.firstWindow();
     await page.getByRole('button', { name: '안내 닫기' }).click();
     await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
-    await page.getByRole('button', { name: '관계 지도', exact: true }).click();
-    await expect(page.locator('.map-root')).toHaveCount(1);
+    await page.getByRole('button', { name: '문서 구조', exact: true }).click();
+    await expect(page.locator('.map-root')).toHaveCount(0);
     await expect(page.locator('.map-document')).toHaveCount(3);
-    expect(await page.locator('.map-section').count()).toBeGreaterThan(3);
+    await expect(page.locator('.react-flow__node .map-section')).toHaveCount(0);
     const legend = page.getByRole('region', { name: '지도 범례' });
     await expect(legend).toContainText('실선');
     await expect(legend).toContainText('점선');
@@ -82,6 +82,7 @@ test('shows root/documents/sections, persists dragged cards, folds sections and 
       (p) => p.nodeId === id,
     )!;
     await node.focus();
+    await page.keyboard.press('Enter');
     await page.keyboard.press('ArrowRight');
     await expect
       .poll(async () => {
@@ -102,7 +103,7 @@ test('shows root/documents/sections, persists dragged cards, folds sections and 
     await app.close();
     app = await launch();
     page = await app.firstWindow();
-    await page.getByRole('button', { name: '관계 지도', exact: true }).click();
+    await page.getByRole('button', { name: '문서 구조', exact: true }).click();
     const restored = await page.evaluate(() => window.workspace.projectMap());
     expect(restored.positions).toContainEqual(saved);
     expect(restored.collapsedDocumentIds).toContain(id);
