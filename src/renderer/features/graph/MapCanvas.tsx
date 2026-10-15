@@ -19,6 +19,8 @@ import { retargetRoute, type Route, type RoutingInput } from './routing';
 import { projectDocumentMap, resolveDocumentEndpoint } from '../../../shared/document-map';
 const nodeTypes = { map: MapNodeCard };
 const edgeTypes = { routed: RoutedEdge, proposal: RoutedEdge };
+// A fresh prop object overwrites the node filter of queued fitView requests.
+const fitViewOptions = { padding: 0.2, minZoom: 0.8, maxZoom: 1 };
 export function MapCanvas({
   workspace,
   busy,
@@ -253,7 +255,11 @@ export function MapCanvas({
   useEffect(() => {
     if (!focusId) return;
     const frame = requestAnimationFrame(
-      () => void flow.current?.fitView({ padding: 0.2, minZoom: 0.8, maxZoom: 1 }),
+      () =>
+        void flow.current?.fitView({
+          nodes: [{ id: focusId }],
+          ...fitViewOptions,
+        }),
     );
     return () => cancelAnimationFrame(frame);
   }, [focusId, nodes.length]);
@@ -409,7 +415,7 @@ export function MapCanvas({
             flow.current = instance;
           }}
           defaultViewport={{ x: 80, y: 96, zoom: 1 }}
-          fitViewOptions={{ padding: 0.2, minZoom: 0.8, maxZoom: 1 }}
+          fitViewOptions={fitViewOptions}
           nodesConnectable={!busy}
           isValidConnection={(c) =>
             !!c.source &&

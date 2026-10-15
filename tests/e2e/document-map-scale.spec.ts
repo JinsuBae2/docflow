@@ -44,6 +44,7 @@ test('keeps 24 document cards readable, focuses one hop and restores section end
   });
   try {
     const page = await app.firstWindow();
+    await page.setViewportSize({ width: 1280, height: 674 });
     const errors: string[] = [];
     page.on('pageerror', (e) => errors.push(e.message));
     // A blocked routing worker must never make an edge disappear.
@@ -112,7 +113,20 @@ test('keeps 24 document cards readable, focuses one hop and restores section end
       'data-sourcehandle',
       `section:${docs[0].sections[1].id}:right`,
     );
-    await card.getByRole('button', { name: '소제목 접기', exact: true }).click();
+    const fold = card.getByRole('button', { name: '소제목 접기', exact: true });
+    await expect
+      .poll(async () => {
+        const button = await fold.boundingBox();
+        const canvas = await page.locator('.graph-canvas').boundingBox();
+        return (
+          !!button &&
+          !!canvas &&
+          button.y >= canvas.y &&
+          button.y + button.height <= canvas.y + canvas.height
+        );
+      })
+      .toBe(true);
+    await fold.click();
     await expect(card.locator('.map-section-row')).toHaveCount(0);
     await expect(edge).toHaveAttribute('data-sourcehandle', 'right');
     await expect
