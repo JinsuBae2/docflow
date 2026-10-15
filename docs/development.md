@@ -20,6 +20,8 @@ Codex는 사용자가 설치한 CLI의 app-server에 연결하고, Claude는 mai
 
 앱 전용 지침은 짧은 기획 설명·확인된 문서 근거·제안 카드로 응답하도록 요구합니다. Codex 임시 작업 디렉터리에서 `project_doc_max_bytes=0`, 빈 fallback 목록, 앱 소유 `developer_instructions`/`model_instructions_file`과 thread 지침을 사용해 로컬 AGENTS·개발자 보고서 지침의 상속을 차단합니다. 로그인과 사용자 설정 파일을 수정하지 않습니다. 설정 의미는 [공식 설정 참조](https://learn.chatgpt.com/docs/config-file/config-reference)와 [AGENTS 탐색 규칙](https://learn.chatgpt.com/docs/config-file/config-advanced#project-instructions-discovery)을 따릅니다.
 
+구조화 AI 응답의 생성 스키마는 모든 속성을 required로 선언하고, 로컬 선택 속성은 nullable로 표현합니다. 제공자 응답에서 선언된 선택 속성의 null만 제거한 뒤 기존 엄격한 파서로 검증합니다. 필수 속성의 null·미등록 키는 계속 거부하며, 저장하는 유저플로우 JSON의 선택 속성 규칙은 바꾸지 않습니다. 이는 [Structured Outputs의 필수 필드 규칙](https://developers.openai.com/api/docs/guides/structured-outputs)을 따릅니다.
+
 ## 문서 구조와 사용자 흐름
 
 논리적 문서·섹션 ID와 관계는 보존하고, 화면에는 문서 카드만 투영합니다. 연결된 섹션 행은 원본 ID의 핸들을 사용하고 숨긴 행은 카드 경계로 위임합니다. 확정·미확정 상태를 분리한 연결 묶음은 선택 시 원래 연결로 펼칩니다. 집중 보기는 직접 연결된 문서만 임시 배치하며 이동량을 전체 지도 좌표에 반영합니다.

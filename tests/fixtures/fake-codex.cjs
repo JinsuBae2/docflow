@@ -47,6 +47,26 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
       return;
     }
   }
+  if (m.method === 'turn/start') {
+    const valid = (value) => {
+      if (!value || typeof value !== 'object') return true;
+      if (Array.isArray(value)) return value.every(valid);
+      if (
+        value.type === 'object' &&
+        (value.additionalProperties !== false ||
+          Object.keys(value.properties || {}).some((key) => !(value.required || []).includes(key)))
+      )
+        return false;
+      return Object.values(value).every(valid);
+    };
+    if (!valid(m.params.outputSchema)) {
+      send({
+        id: m.id,
+        error: { message: 'Invalid strict output schema: every property must be required' },
+      });
+      return;
+    }
+  }
   const result =
     m.method === 'config/read' && mode === 'instruction-isolation'
       ? {
@@ -216,6 +236,19 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
           ];
         }
         if (context.flowContext) proposals = require('./flow-response.cjs')(context).proposals;
+        if (mode === 'flow-null-fields') {
+          const node = proposals[0].flow.nodes[0];
+          Object.assign(node, {
+            parentId: null,
+            extent: null,
+            position: null,
+            width: null,
+            height: null,
+            collapsed: null,
+          });
+          Object.assign(node.data, { description: null, components: null, outputs: null });
+          proposals[0].scopedSourceId = null;
+        }
         if (context.rejectedProposal) proposals = proposals.slice(0, 1);
         if (context.budget && context.instruction === '대형 프로젝트 범위 검증') proposals = [];
         const item = {
