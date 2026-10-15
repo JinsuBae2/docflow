@@ -49,7 +49,10 @@ it('normalizes only optional AI nulls while preserving required nulls and strict
   proposal.flow.edges[0].label = null;
   expect(() => parseUserFlow(proposal.flow)).toThrow();
   const parsed = responseSchema.parse(normalizeAiResponse(wire));
-  const flow = parsed.proposals[0].flow!;
+  const parsedProposal = parsed.proposals[0];
+  expect(parsedProposal.kind).toBe('flow');
+  if (parsedProposal.kind !== 'flow') throw new Error('Expected a flow proposal');
+  const flow = parsedProposal.flow;
   expect(flow.nodes[0].parentId).toBeUndefined();
   expect(flow.nodes[0].data.description).toBeUndefined();
   expect(flow.edges[0].sourceHandle).toBeUndefined();
