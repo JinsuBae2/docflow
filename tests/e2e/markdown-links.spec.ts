@@ -101,7 +101,8 @@ test('navigates original inline/reference anchors, registers linked files and ke
       ]);
     });
     expect(rejected).toEqual([true, true]);
-    await page.getByRole('button', { name: '관계 지도', exact: true }).click();
+    await page.getByRole('button', { name: '문서 구조', exact: true }).click();
+    await page.locator('.relations-list summary').click();
     const parsed = page.locator('.relation-row[data-origin="markdown"]');
     await expect(parsed).toHaveCount(3);
     await expect(parsed.getByRole('button', { name: '연결 해제', exact: true })).toHaveCount(0);
@@ -110,7 +111,7 @@ test('navigates original inline/reference anchors, registers linked files and ke
     await writeFile(join(root, 'docs/a.md'), '# 링크 시작\n원문 링크 제거');
     await page.getByRole('button', { name: '문서', exact: true }).click();
     await page.getByRole('button', { name: '링크 새로고침', exact: true }).click();
-    await page.getByRole('button', { name: '관계 지도', exact: true }).click();
+    await page.getByRole('button', { name: '문서 구조', exact: true }).click();
     await expect(parsed).toHaveCount(0);
     expect(
       (await page.evaluate(() => window.workspace.current()))!.relations.map(

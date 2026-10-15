@@ -1,3 +1,4 @@
+import { compareDocuments, displayDocumentType } from '../shared/document-presentation';
 import { useEffect, useRef, useState } from 'react';
 import {
   Workflow,
@@ -802,6 +803,7 @@ export default function App() {
                   .filter((d) =>
                     (d.title + d.markdown).toLowerCase().includes(search.toLowerCase()),
                   )
+                  .sort(compareDocuments)
                   .map((d) => (
                     <div key={d.id}>
                       <button
@@ -810,7 +812,11 @@ export default function App() {
                       >
                         <FileText size={15} />
                         <span>{d.title}</span>
-                        <span className={'nav-type type-' + d.type}>{typeLabels[d.type]}</span>
+                        {displayDocumentType(d) && (
+                          <span className={'nav-type type-' + d.type}>
+                            {displayDocumentType(d)}
+                          </span>
+                        )}
                       </button>
                       {d.id === doc?.id && !search && (
                         <div className="section-nav">
@@ -881,8 +887,8 @@ export default function App() {
                   {view === 'document'
                     ? doc?.title || '문서'
                     : view === 'graph'
-                      ? '관계 지도'
-                      : '다이어그램'}
+                      ? '문서 구조'
+                      : '사용자 흐름'}
                 </span>
               </span>
             </div>
@@ -897,19 +903,19 @@ export default function App() {
               </button>
               <button
                 className={view === 'graph' ? 'active' : ''}
-                aria-label="관계 지도"
+                aria-label="문서 구조"
                 onClick={() => switchView('graph')}
               >
                 <Network size={14} />
-                <span>관계 지도</span>
+                <span>문서 구조</span>
               </button>
               <button
                 className={view === 'diagram' ? 'active' : ''}
-                aria-label="다이어그램"
+                aria-label="사용자 흐름"
                 onClick={() => switchView('diagram')}
               >
                 <GitBranch size={14} />
-                <span>다이어그램</span>
+                <span>사용자 흐름</span>
               </button>
             </div>
             <button

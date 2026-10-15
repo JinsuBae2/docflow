@@ -1,44 +1,40 @@
 import type { ProjectMap } from '../../../shared/project-map';
+import { compareDocuments } from '../../../shared/document-presentation';
+import { CARD_WIDTH } from '../../../shared/document-map';
 export function layoutProjectMap(
   map: ProjectMap,
   sizes: Record<string, { width: number; height: number }>,
 ) {
+  const documents = map.nodes.filter((n) => n.kind === 'document').sort(compareDocuments);
+  const columns = Math.min(4, Math.max(1, Math.ceil(Math.sqrt(documents.length))));
   const result: Record<string, { x: number; y: number }> = {};
-  const height = (id: string) => sizes[id]?.height || 82;
   let y = 0;
-  for (const doc of map.nodes.filter((n) => n.kind === 'document')) {
-    const children = map.collapsedDocumentIds.includes(doc.id)
-      ? []
-      : map.nodes.filter((n) => n.documentId === doc.id && n.kind !== 'document');
-    const start = y;
-    for (const node of children) {
-      result[node.id] = { x: 760, y };
-      y += height(node.id) + 24;
-    }
-    y = Math.max(y, start + height(doc.id) + 24);
-    result[doc.id] = { x: 360, y: start + (y - start - 24 - height(doc.id)) / 2 };
-    y += 48;
+  for (let row = 0; row < documents.length; row += columns) {
+    const batch = documents.slice(row, row + columns);
+    batch.forEach((node, col) => {
+      result[node.id] = { x: col * (CARD_WIDTH + 120), y };
+    });
+    y += Math.max(...batch.map((n) => sizes[n.id]?.height || 308)) + 96;
   }
-  const root = map.nodes.find((n) => n.kind === 'root');
-  if (root) result[root.id] = { x: 0, y: Math.max(0, (y - 48 - height(root.id)) / 2) };
-  for (const p of map.positions) if (result[p.nodeId]) result[p.nodeId] = { x: p.x, y: p.y };
-  // Only newly placed cards move out of the way of saved coordinates.
-  const saved = new Set(map.positions.map((p) => p.nodeId));
-  const placed = Object.entries(result).filter(([id]) => saved.has(id));
-  for (const [id, p] of Object.entries(result))
-    if (!saved.has(id)) {
-      while (
-        placed.some(
-          ([other, q]) =>
-            p.x < q.x + (sizes[other]?.width || 230) + 16 &&
-            p.x + 230 + 16 > q.x &&
-            p.y < q.y + height(other) + 24 &&
-            p.y + height(id) + 24 > q.y,
-        )
-      )
-        p.y += height(id) + 24;
-      placed.push([id, p]);
-    }
+  const saved = map.layoutVersion === 2 ? map.positions.filter((p) => result[p.nodeId]) : [];
+  for (const p of saved) result[p.nodeId] = { x: p.x, y: p.y };
+  const placed = saved.map((p) => p.nodeId);
+  for (const node of documents.filter((n) => !placed.includes(n.id))) {
+    const p = result[node.id];
+    while (
+      placed.some((id) => {
+        const q = result[id];
+        return (
+          p.x < q.x + CARD_WIDTH + 24 &&
+          p.x + CARD_WIDTH + 24 > q.x &&
+          p.y < q.y + (sizes[id]?.height || 308) + 24 &&
+          p.y + (sizes[node.id]?.height || 308) + 24 > q.y
+        );
+      })
+    )
+      p.y += (sizes[node.id]?.height || 308) + 96;
+    placed.push(node.id);
+  }
   return result;
 }
 

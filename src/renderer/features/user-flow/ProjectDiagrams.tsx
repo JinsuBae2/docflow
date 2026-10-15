@@ -28,7 +28,7 @@ export function ProjectDiagrams(
   );
   return (
     <div className="project-diagrams">
-      <div className="diagram-mode-tabs" role="tablist" aria-label="다이어그램 보기">
+      <div className="diagram-mode-tabs" role="tablist" aria-label="사용자 흐름 보기">
         {(['mermaid', 'userflow'] as const).map((item) => (
           <button
             key={item}
@@ -39,7 +39,7 @@ export function ProjectDiagrams(
                 setMode(item);
             }}
           >
-            {item === 'mermaid' ? 'Mermaid 다이어그램' : '유저플로우'}
+            {item === 'mermaid' ? '문서 속 흐름' : '유저플로우'}
           </button>
         ))}
       </div>

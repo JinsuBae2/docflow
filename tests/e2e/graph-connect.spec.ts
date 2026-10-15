@@ -3,7 +3,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
-async function drag(page: Page, from: string, to: string, handle = '.react-flow__handle-left') {
+async function drag(page: Page, from: string, to: string, handle = '[data-handleid="left"]') {
   // A preceding connection gesture can pan the viewport near its boundary.
   await page.locator('.react-flow__controls-fitview').click();
   await page.evaluate(
@@ -13,7 +13,7 @@ async function drag(page: Page, from: string, to: string, handle = '.react-flow_
     .locator('.react-flow__node')
     .filter({ has: page.locator('.map-document') })
     .filter({ hasText: from })
-    .locator('.react-flow__handle-right')
+    .locator('[data-handleid="right"]')
     .boundingBox();
   const end = await page
     .locator('.react-flow__node')
@@ -55,16 +55,16 @@ test('connects documents by dragging, blocks invalid targets, edits and keeps AI
     let page = await app.firstWindow();
     await page.getByRole('button', { name: '안내 닫기' }).click();
     await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
-    await page.getByRole('button', { name: '관계 지도', exact: true }).click();
+    await page.getByRole('button', { name: '문서 구조', exact: true }).click();
 
     // Leave an AI proposal pending; drag connections must not accept or drop it.
-    await page.getByRole('button', { name: 'AI로 관계 검토', exact: true }).click();
+    await page.getByRole('button', { name: 'AI로 연결 검토', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: '확인', exact: true }).click();
     await page.getByRole('button', { name: '요청 보내기', exact: true }).click();
     await expect(
       page.getByRole('button', { name: '제안 수락', exact: true }).first(),
     ).toBeVisible();
-    await page.getByRole('button', { name: '관계 지도', exact: true }).click();
+    await page.getByRole('button', { name: '문서 구조', exact: true }).click();
     await expect(page.locator('.react-flow__edge-proposal').first()).toBeVisible();
     const before = (await page.evaluate(() => window.workspace.current()))!;
     const pendingIds = before.proposals.filter((p) => p.status === 'pending').map((p) => p.id);
@@ -96,6 +96,7 @@ test('connects documents by dragging, blocks invalid targets, edits and keeps AI
     const skipEdge = page.locator(`.react-flow__edge[data-id="${added.id}"]`);
     const skipLabel = skipEdge.locator('.react-flow__edge-textwrapper');
     await expect(skipLabel).toBeVisible();
+    await expect(skipEdge.locator('[data-routing]')).toHaveAttribute('data-routing', 'routed');
     const overlaps = await page.evaluate((id) => {
       const cards = [...document.querySelectorAll('.react-flow__node')].map((n) =>
         n.getBoundingClientRect(),
@@ -122,7 +123,7 @@ test('connects documents by dragging, blocks invalid targets, edits and keeps AI
     await skipLabel.click();
     await expect(page.locator(`[data-relation-id="${added.id}"]`)).toHaveClass(/selected/);
     await expect(skipEdge).toHaveClass(/selected/);
-    await expect(page.getByRole('heading', { name: '문서 관계 지도' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '문서 구조' })).toBeVisible();
 
     // The same link again is rejected by the main process.
     await drag(page, '프로젝트 개요', '사용자 흐름');
@@ -131,6 +132,7 @@ test('connects documents by dragging, blocks invalid targets, edits and keeps AI
     await expect(page.getByRole('alert').filter({ hasText: '이미 있습니다' })).toBeVisible();
     await dialog.getByRole('button', { name: '닫기' }).click();
 
+    await page.getByRole('button', { name: '모든 연결 보기', exact: true }).click();
     // Keyboard path: choose both ends in the dialog.
     await page.getByRole('button', { name: '연결 추가', exact: true }).click();
     await dialog.getByRole('combobox', { name: '기준 문서' }).selectOption(flow.id);
@@ -147,6 +149,7 @@ test('connects documents by dragging, blocks invalid targets, edits and keeps AI
     await expect(page.locator(`.react-flow__edge[data-id="${refined.id}"]`)).toHaveClass(
       /selected/,
     );
+    await page.getByRole('button', { name: '모든 연결 보기', exact: true }).click();
     const row = page.locator(`[data-relation-id="${added.id}"]`);
     await row.getByRole('button', { name: '관계 유형 수정', exact: true }).click();
     await row.getByRole('textbox', { name: '관계 유형', exact: true }).fill('수정한 연결');
@@ -156,13 +159,14 @@ test('connects documents by dragging, blocks invalid targets, edits and keeps AI
     await app.close();
     app = await launch();
     page = await app.firstWindow();
-    await page.getByRole('button', { name: '관계 지도', exact: true }).click();
+    await page.getByRole('button', { name: '문서 구조', exact: true }).click();
     const restored = (await page.evaluate(() => window.workspace.current()))!;
     expect(restored.relations.find((r) => r.id === added.id)?.type).toBe('수정한 연결');
     expect(restored.proposals.filter((p) => p.status === 'pending').map((p) => p.id)).toEqual(
       pendingIds,
     );
     await expect(page.locator('.react-flow__edge-proposal').first()).toBeVisible();
+    await page.locator('.relations-list summary').click();
     const restoredRow = page.locator(`[data-relation-id="${added.id}"]`);
     await restoredRow.getByRole('button', { name: '연결 해제', exact: true }).click();
     await expect(restoredRow).toHaveCount(0);

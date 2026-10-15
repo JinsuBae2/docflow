@@ -22,8 +22,8 @@ test('previews AI relationship evidence, applies only reviewed links and edits c
     const original = await page.getByRole('textbox', { name: 'Markdown 본문' }).inputValue();
     await page.getByRole('textbox', { name: 'Markdown 본문' }).fill(original + '\n보존된 초안');
     page.once('dialog', (dialog) => dialog.accept());
-    await page.getByRole('button', { name: '관계 지도', exact: true }).click();
-    await page.getByRole('button', { name: 'AI로 관계 검토', exact: true }).click();
+    await page.getByRole('button', { name: '문서 구조', exact: true }).click();
+    await page.getByRole('button', { name: 'AI로 연결 검토', exact: true }).click();
     await expect(page.getByRole('alert').filter({ hasText: /초안.*저장/ })).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(0);
     const draftWorkspace = (await page.evaluate(() => window.workspace.current()))!;
@@ -35,7 +35,7 @@ test('previews AI relationship evidence, applies only reviewed links and edits c
       .getByRole('checkbox')
       .uncheck();
     await page.getByRole('dialog').getByRole('button', { name: '확인', exact: true }).click();
-    await page.getByRole('button', { name: 'AI로 관계 검토', exact: true }).click();
+    await page.getByRole('button', { name: 'AI로 연결 검토', exact: true }).click();
     const restoredSource = page
       .getByRole('dialog')
       .locator('.context-source')
@@ -50,9 +50,9 @@ test('previews AI relationship evidence, applies only reviewed links and edits c
     await page.getByRole('button', { name: '문서', exact: true }).click();
     await expect(page.getByRole('textbox', { name: 'Markdown 본문' })).toHaveValue(/보존된 초안/);
     await page.getByRole('button', { name: '저장', exact: true }).click();
-    await page.getByRole('button', { name: '관계 지도', exact: true }).click();
+    await page.getByRole('button', { name: '문서 구조', exact: true }).click();
 
-    await page.getByRole('button', { name: 'AI로 관계 검토', exact: true }).click();
+    await page.getByRole('button', { name: 'AI로 연결 검토', exact: true }).click();
     const before = (await page.evaluate(() => window.workspace.current()))!;
     const dialog = page.getByRole('dialog');
     await dialog
@@ -63,16 +63,22 @@ test('previews AI relationship evidence, applies only reviewed links and edits c
     await dialog.getByRole('button', { name: '확인', exact: true }).click();
     await page.getByRole('button', { name: '요청 보내기', exact: true }).click();
     await expect(page.getByRole('button', { name: 'AI 연결 제안', exact: true })).toBeVisible();
+    await expect(page.locator('.react-flow__edge-proposal [data-routing]')).toHaveAttribute(
+      'data-routing',
+      'routed',
+    );
     await expect(
-      page.locator('.react-flow__edge-proposal text').filter({ hasText: 'AI 제안 · 근거' }),
+      page
+        .locator('.react-flow__edge-proposal .react-flow__edge-textwrapper')
+        .filter({ hasText: 'AI 제안 · 2개 연결' }),
     ).toBeVisible();
     const existingLabel = await page
       .locator('.react-flow__edge-text')
       .filter({ hasText: '사용자 흐름' })
       .boundingBox();
     const proposedLabel = await page
-      .locator('.react-flow__edge-proposal text')
-      .filter({ hasText: 'AI 제안 · 근거' })
+      .locator('.react-flow__edge-proposal .react-flow__edge-textwrapper')
+      .filter({ hasText: 'AI 제안 · 2개 연결' })
       .boundingBox();
     expect(
       existingLabel &&
@@ -82,6 +88,16 @@ test('previews AI relationship evidence, applies only reviewed links and edits c
         existingLabel.y < proposedLabel.y + proposedLabel.height &&
         existingLabel.y + existingLabel.height > proposedLabel.y,
     ).toBe(false);
+    await page
+      .locator('.react-flow__edge-proposal .react-flow__edge-textwrapper')
+      .filter({ hasText: 'AI 제안 · 2개 연결' })
+      .click();
+    await expect(page.locator('.pending-relation-detail')).toHaveCount(2);
+    await expect(page.locator('.pending-relation-detail').first()).toContainText(
+      '선택한 두 문서에서 연결 근거를 찾았습니다.',
+    );
+    await expect(page.locator('.pending-relation-detail').first()).toContainText('→');
+    await expect(page.locator('.react-flow__edge-proposal')).toHaveCount(2);
     const pending = (await page.evaluate(() => window.workspace.current()))!;
     expect(pending.relations).toHaveLength(before.relations.length);
     expect(pending.proposals[0].sourceIds).not.toContain(before.documents[0].id);
@@ -94,6 +110,7 @@ test('previews AI relationship evidence, applies only reviewed links and edits c
     const accepted = (await page.evaluate(() => window.workspace.current()))!;
     expect(accepted.relations).toHaveLength(before.relations.length + 1);
     const added = accepted.relations.find((r) => !before.relations.some((old) => old.id === r.id))!;
+    await page.getByRole('button', { name: '모든 연결 보기', exact: true }).click();
     const row = page.locator(`[data-relation-id="${added.id}"]`);
     await row.getByRole('button', { name: '관계 유형 수정', exact: true }).click();
     await row.getByRole('textbox', { name: '관계 유형', exact: true }).fill('테스트 커스텀 근거');
@@ -101,7 +118,7 @@ test('previews AI relationship evidence, applies only reviewed links and edits c
     await expect(row).toContainText('테스트 커스텀 근거');
     await row.getByRole('button', { name: '연결 해제', exact: true }).click();
     await expect(row).toHaveCount(0);
-    await page.getByRole('button', { name: 'AI로 관계 검토', exact: true }).click();
+    await page.getByRole('button', { name: 'AI로 연결 검토', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: '확인', exact: true }).click();
     await page.getByRole('button', { name: '요청 보내기', exact: true }).click();
     await expect(page.getByRole('button', { name: '제안 수락', exact: true })).toHaveCount(2);

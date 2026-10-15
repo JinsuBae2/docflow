@@ -1,29 +1,30 @@
-import { BaseEdge, type EdgeProps } from '@xyflow/react';
+import { BaseEdge, getBezierPath, type EdgeProps } from '@xyflow/react';
 import { displayRouteLabel, type Route } from './routing';
-export function RoutedEdge({
-  id,
-  data,
-  markerEnd,
-  style,
-  label,
-  labelStyle,
-  labelBgStyle,
-}: EdgeProps) {
+export function RoutedEdge(props: EdgeProps) {
+  const { id, data, markerEnd, style, label, labelStyle, labelBgStyle } = props;
   const route = data?.route as Route | undefined;
-  if (!route || route.status !== 'ready') return null;
-  const path = route.points.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ');
+  const ready = route?.status === 'ready' && route.points.length >= 2;
+  const fallback = getBezierPath(props);
+  const path = ready
+    ? route.points.map((p, i) => `${i ? 'L' : 'M'} ${p.x} ${p.y}`).join(' ')
+    : fallback[0];
   const text = typeof label === 'string' ? displayRouteLabel(label) : label;
+  const labelPosition = ready ? route.labelPosition : { x: fallback[1], y: fallback[2] };
   return (
-    <g>
-      <title>{typeof label === 'string' ? label : '문서 구조'}</title>
+    <g
+      data-routing={ready ? 'routed' : 'fallback'}
+      data-sourcehandle={props.sourceHandleId}
+      data-targethandle={props.targetHandleId}
+    >
+      <title>{typeof label === 'string' ? label : '문서 연결'}</title>
       <BaseEdge
         id={id}
         path={path}
         markerEnd={markerEnd}
         style={style}
-        label={route.labelPosition ? text : undefined}
-        labelX={route.labelPosition?.x}
-        labelY={route.labelPosition?.y}
+        label={labelPosition ? text : undefined}
+        labelX={labelPosition?.x}
+        labelY={labelPosition?.y}
         labelStyle={labelStyle}
         labelBgStyle={labelBgStyle}
         labelBgPadding={[8, 5]}

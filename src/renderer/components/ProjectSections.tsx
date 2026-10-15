@@ -1,3 +1,4 @@
+import { compareDocuments } from '../../shared/document-presentation';
 import { useEffect, useState, type ReactNode } from 'react';
 import { ChevronDown, ChevronRight, FileText, X } from 'lucide-react';
 import type { Document, ProjectEntry } from '../../shared/contracts';
@@ -81,9 +82,9 @@ export function ProjectSections({
                 disabled={disabled || !!entry.error}
                 data-tooltip={
                   entry.error ||
-                  '현재 초안을 보존하고 이 프로젝트의 문서·대화·관계 지도로 전환합니다.'
+                  '현재 초안을 보존하고 이 프로젝트의 문서·대화·문서 구조로 전환합니다.'
                 }
-                title={entry.error || '이 프로젝트의 문서·대화·관계 지도로 전환'}
+                title={entry.error || '이 프로젝트의 문서·대화·문서 구조로 전환'}
                 onClick={() => onSelect(entry)}
               >
                 {entry.name}
@@ -106,16 +107,19 @@ export function ProjectSections({
                 children
               ) : (
                 <nav className="inactive-project-docs">
-                  {documents[entry.id]?.map((doc) => (
-                    <button
-                      key={doc.id}
-                      disabled={disabled}
-                      onClick={() => onSelect(entry, doc.id)}
-                    >
-                      <FileText size={14} />
-                      <span>{doc.title}</span>
-                    </button>
-                  ))}
+                  {documents[entry.id]
+                    ?.slice()
+                    .sort(compareDocuments)
+                    .map((doc) => (
+                      <button
+                        key={doc.id}
+                        disabled={disabled}
+                        onClick={() => onSelect(entry, doc.id)}
+                      >
+                        <FileText size={14} />
+                        <span>{doc.title}</span>
+                      </button>
+                    ))}
                   {!documents[entry.id]?.length && (
                     <button disabled={disabled || !!entry.error} onClick={() => onSelect(entry)}>
                       프로젝트 열기

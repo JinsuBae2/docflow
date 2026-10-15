@@ -30,7 +30,10 @@ test('renders semantic flows, preserves manual positions, projects collapsed edg
     const workspace = (await page.evaluate(() => window.workspace.current()))!;
     const doc = workspace.documents.find((doc) => doc.title === '프로젝트 개요')!;
     const section = doc.sections[0];
-    await page.getByRole('button', { name: '다이어그램', exact: true }).click();
+    await page
+      .locator('.view-tabs')
+      .getByRole('button', { name: '사용자 흐름', exact: true })
+      .click();
     await page.getByRole('tab', { name: '유저플로우', exact: true }).click();
     await page.getByRole('button', { name: '새 유저플로우', exact: true }).click();
     const draft = JSON.parse(
@@ -301,7 +304,10 @@ test('renders semantic flows, preserves manual positions, projects collapsed edg
     await writeFile(jsonPath, JSON.stringify(external));
     app = await launch();
     page = await app.firstWindow();
-    await page.getByRole('button', { name: '다이어그램', exact: true }).click();
+    await page
+      .locator('.view-tabs')
+      .getByRole('button', { name: '사용자 흐름', exact: true })
+      .click();
     await page.getByRole('tab', { name: '유저플로우', exact: true }).click();
     await expect(page.locator('.user-flow-card')).toHaveCount(3);
     await expect(page.locator('.flow-detail').getByRole('status')).toHaveText('저장됨');
@@ -315,7 +321,7 @@ test('renders semantic flows, preserves manual positions, projects collapsed edg
         await readFile(join(workspace.root, '.workspace', 'flows', `${draft.id}.json`), 'utf8'),
       ).nodes,
     ).toHaveLength(8);
-    await page.getByRole('tab', { name: 'Mermaid 다이어그램', exact: true }).click();
+    await page.getByRole('tab', { name: '문서 속 흐름', exact: true }).click();
     await expect(page.locator('.diagram-canvas svg')).toBeVisible();
     expect(errors).toEqual([]);
   } finally {

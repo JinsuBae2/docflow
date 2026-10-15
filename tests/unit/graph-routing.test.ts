@@ -81,3 +81,25 @@ it('keeps endpoints following a moving card and hides cached paths blocked by ne
   expect(updated.status).toBe('ready');
   expect(retargetRoute(original, 'a', 'c', nodes)).toBeUndefined();
 });
+it('keeps labels visible on routes around document cards and uses section row anchors', () => {
+  const cards = [
+    { id: 'a', x: 0, y: 0, width: 320, height: 148 },
+    { id: 'b', x: 440, y: 0, width: 320, height: 148 },
+    { id: 'c', x: 0, y: 244, width: 320, height: 148 },
+  ];
+  const start = { x: 320, y: 292 },
+    end = { x: 0, y: 48 };
+  const route = routeEdges({
+    version: 1,
+    nodes: cards,
+    edges: [
+      { id: 'cb', fromId: 'c', toId: 'b', start, end: { x: 440, y: 48 }, label: '구체화' },
+      { id: 'ba', fromId: 'b', toId: 'a', start: { x: 760, y: 48 }, end, label: '사용자 흐름' },
+      { id: 'ca', fromId: 'c', toId: 'a', start, end, label: '드래그 연결' },
+    ],
+  }).routes[2];
+  expect(route.points[0]).toEqual(start);
+  expect(route.points.at(-1)).toEqual(end);
+  expect(route.labelPosition).toBeDefined();
+  expect(retargetRoute(route, 'c', 'a', cards, { start, end })?.labelPosition).toBeDefined();
+});

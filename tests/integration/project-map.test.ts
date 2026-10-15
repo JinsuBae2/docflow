@@ -50,13 +50,23 @@ it('persists layout/view per project and rejects invalid IDs/coordinates atomica
     legendCollapsed: true,
   });
 });
-it('keeps section endpoints and inactive positions without reassigning them on heading changes', async () => {
+it('archives legacy section coordinates while preserving original relation endpoints', async () => {
   const a = await store.createDocument('A', 'note', '# A\n## 같은 제목');
   const b = await store.createDocument('B', 'note', '# B\n## 같은 제목');
   store.addRelation(a.sections[1].id, b.sections[1].id, '설계 근거');
   const service = new ProjectMapStore(store);
   const map = service.read();
-  service.saveLayout(map.projectId, [{ nodeId: a.sections[1].id, x: 760, y: 222 }]);
+  store.put('map-view', {
+    id: map.projectId,
+    positions: [{ nodeId: a.sections[1].id, x: 760, y: 222 }],
+    collapsedDocumentIds: [],
+    legendCollapsed: false,
+  });
+  service.saveLayout(map.projectId, [{ nodeId: a.id, x: 0, y: 0 }]);
+  expect(service.read().layoutVersion).toBe(2);
+  expect(
+    store.get<{ positions: unknown[] }>('map-view-v1', map.projectId)?.positions,
+  ).toContainEqual({ nodeId: a.sections[1].id, x: 760, y: 222 });
   expect(map.edges.find((e) => e.kind === 'semantic')).toMatchObject({
     fromId: a.sections[1].id,
     toId: b.sections[1].id,
@@ -64,7 +74,7 @@ it('keeps section endpoints and inactive positions without reassigning them on h
   });
   await store.saveDocument(a.id, a.markdown.replace('## 같은 제목', '같은 제목'), a.revision);
   expect(service.read().nodes.some((n) => n.id === a.sections[1].id)).toBe(false);
-  expect(service.read().positions).toContainEqual({ nodeId: a.sections[1].id, x: 760, y: 222 });
+  expect(service.read().positions).toEqual([{ nodeId: a.id, x: 0, y: 0 }]);
 });
 it('drops inactive folded IDs after file deletion so the remaining map can still be saved', async () => {
   const doc = await store.createDocument('접은 문서', 'note', '# 소제목');

@@ -9,7 +9,14 @@ export interface Rect extends Point {
 export interface RoutingInput {
   version: number;
   nodes: Array<Rect & { id: string }>;
-  edges: Array<{ id: string; fromId: string; toId: string; label?: string }>;
+  edges: Array<{
+    id: string;
+    fromId: string;
+    toId: string;
+    label?: string;
+    start?: Point;
+    end?: Point;
+  }>;
   maxStates?: number;
 }
 export interface Route {
@@ -52,13 +59,14 @@ export function retargetRoute(
   fromId: string,
   toId: string,
   nodes: RoutingInput['nodes'],
+  anchors?: { start: Point; end: Point },
 ): Route | undefined {
   if (route.status !== 'ready') return route;
   const source = nodes.find((node) => node.id === fromId);
   const target = nodes.find((node) => node.id === toId);
   if (!source || !target || route.points.length < 2) return;
-  const start = { x: source.x + source.width, y: source.y + source.height / 2 };
-  const end = { x: target.x, y: target.y + target.height / 2 };
+  const start = anchors?.start || { x: source.x + source.width, y: source.y + source.height / 2 };
+  const end = anchors?.end || { x: target.x, y: target.y + target.height / 2 };
   const previousStart = route.points[0];
   const previousEnd = route.points[route.points.length - 1];
   let points = route.points;
@@ -104,7 +112,7 @@ export function retargetRoute(
   const label = route.labelBounds;
   const labelSafe =
     !label ||
-    !obstacles.some(
+    !nodes.some(
       (rect) =>
         label.x < rect.x + rect.width &&
         label.x + label.width > rect.x &&
@@ -226,8 +234,8 @@ export function* routeBatch(input: RoutingInput): Generator<Route> {
       yield failure('blocked');
       continue;
     }
-    const start = { x: source.x + source.width, y: source.y + source.height / 2 },
-      end = { x: target.x, y: target.y + target.height / 2 };
+    const start = edge.start || { x: source.x + source.width, y: source.y + source.height / 2 },
+      end = edge.end || { x: target.x, y: target.y + target.height / 2 };
     const a = {
       x: Math.ceil((start.x + margin + step) / step) * step,
       y: Math.round(start.y / step) * step,
@@ -362,7 +370,7 @@ export function* routeBatch(input: RoutingInput): Generator<Route> {
           };
           const rect = { x: p.x - width / 2, y: p.y - height / 2, width, height };
           if (
-            ![...obstacles, ...labels].some(
+            ![...valid, ...labels].some(
               (r) =>
                 rect.x < r.x + r.width &&
                 rect.x + rect.width > r.x &&

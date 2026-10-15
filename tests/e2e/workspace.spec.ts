@@ -31,7 +31,7 @@ test('opens documents, reviews proposals, persists decisions and displays a rela
     await expect(page.getByRole('button', { name: '예제 프로젝트 열기' })).toBeVisible();
     await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
     await expect(page.getByRole('heading', { name: '프로젝트 개요', exact: true })).toBeVisible();
-    await page.getByRole('button', { name: '관계 지도', exact: true }).click();
+    await page.getByRole('button', { name: '문서 구조', exact: true }).click();
     await expect(page.locator('.map-document')).toHaveCount(3);
     await page.getByRole('button', { name: '문서', exact: true }).click();
     await page.getByRole('textbox', { name: 'AI에게 요청' }).fill('누락된 예외 처리를 제안해줘');
@@ -53,14 +53,17 @@ test('opens documents, reviews proposals, persists decisions and displays a rela
         '\n## 다음 할 일\n맥락 확인\n<script>window.pwned = true</script>',
     );
     page.once('dialog', (dialog) => dialog.dismiss());
-    await page.getByRole('button', { name: '관계 지도', exact: true }).click();
+    await page.getByRole('button', { name: '문서 구조', exact: true }).click();
     await expect(editor).toBeVisible();
     await expect(editor).toHaveValue(/맥락 확인/);
     await page.getByRole('button', { name: '저장', exact: true }).click();
     await expect(page.getByRole('heading', { name: '다음 할 일', exact: true })).toBeVisible();
     expect(await page.evaluate(() => (window as any).pwned)).toBeUndefined();
     await page.screenshot({ path: 'outputs/authoring.png', fullPage: true });
-    await page.getByRole('button', { name: '다이어그램', exact: true }).click();
+    await page
+      .locator('.view-tabs')
+      .getByRole('button', { name: '사용자 흐름', exact: true })
+      .click();
     await expect(page.locator('.diagram-canvas svg')).toBeVisible();
     const fitWidth = await page
       .locator('.diagram-canvas svg')
@@ -78,7 +81,9 @@ test('opens documents, reviews proposals, persists decisions and displays a rela
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
       true,
     );
-    await expect(page.getByRole('button', { name: '다이어그램', exact: true })).toBeInViewport();
+    await expect(
+      page.locator('.view-tabs').getByRole('button', { name: '사용자 흐름', exact: true }),
+    ).toBeInViewport();
     await page.screenshot({ path: 'outputs/compact-800.png', fullPage: true });
     await app.close();
     app = await launch();
@@ -310,7 +315,7 @@ test('onboards, previews local imports without losing drafts, saves the CLI mode
     await page.getByRole('button', { name: '저장', exact: true }).click();
     await expect(editor).toBeHidden();
     await page.screenshot({ path: 'outputs/improved-document.png', fullPage: true });
-    await page.getByRole('button', { name: '관계 지도', exact: true }).click();
+    await page.getByRole('button', { name: '문서 구조', exact: true }).click();
     await expect(page.locator('.map-document')).toHaveCount(5);
     await page.keyboard.press('Escape');
     await page.screenshot({ path: 'outputs/improved-graph.png', fullPage: true });
@@ -320,7 +325,7 @@ test('onboards, previews local imports without losing drafts, saves the CLI mode
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await page.getByRole('button', { name: 'AI 연결 설정', exact: true }).click();
     await expect(page.getByLabel('AI 모델')).toHaveValue('test-fast');
-    await expect(page.getByRole('heading', { name: '문서 관계 지도', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '문서 구조', exact: true })).toBeVisible();
     await expect(page.locator('.map-document')).toHaveCount(5);
     await page.getByRole('button', { name: '안내 닫기', exact: true }).click();
     await page.getByRole('button', { name: '문서', exact: true }).click();
