@@ -9,11 +9,12 @@ export function ProjectDiagrams(
     workspace: Workspace;
     onRequestFlow?: (flowId: string | null) => void;
     onEvidence: (evidence: FlowEvidence) => void;
+    initialMode?: 'mermaid' | 'userflow';
     userFlowFocus?: { flowId: string; nodeId: string };
   },
 ) {
   const [mode, setMode] = useState<'mermaid' | 'userflow'>(
-    props.userFlowFocus ? 'userflow' : 'mermaid',
+    props.userFlowFocus ? 'userflow' : props.initialMode || 'mermaid',
   );
   const [dirty, setDirty] = useState(false);
   useEffect(() => {

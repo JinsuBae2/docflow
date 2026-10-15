@@ -29,6 +29,10 @@ try {
   await page.evaluate(() => globalThis.document.fonts.ready);
   await page.getByRole('button', { name: '안내 닫기' }).click();
   await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
+  await expect(page.locator('.project-briefing')).toBeVisible();
+  await page.mouse.move(720, 25);
+  await page.screenshot({ path: 'docs/images/project-briefing.png' });
+  await page.getByRole('button', { name: '문서', exact: true }).click();
   await expect(page.getByRole('heading', { name: '프로젝트 개요', exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await page.screenshot({ path: 'docs/images/workspace.png' });

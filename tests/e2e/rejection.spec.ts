@@ -57,6 +57,7 @@ test('opens rejection input, cancels without changes, sends an empty reason with
   const app = await f.launch();
   try {
     const page = await app.firstWindow();
+    await page.getByRole('button', { name: '문서', exact: true }).click();
     await expect(page.getByRole('heading', { name: '거절 검토 예제', exact: true })).toBeVisible();
     await page.locator('.assistant-tabs').getByRole('button', { name: /^제안/ }).click();
     const before = await page.evaluate(() => window.workspace.current());
@@ -96,6 +97,7 @@ test('preserves failed feedback after restart, retries once and blocks duplicate
   let app = await f.launch();
   try {
     let page = await app.firstWindow();
+    await page.getByRole('button', { name: '문서', exact: true }).click();
     const input = {
       instruction: '후속 검토',
       selectedIds: [] as string[],

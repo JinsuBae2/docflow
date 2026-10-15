@@ -1,12 +1,13 @@
+import { contextPayload } from '../../shared/context-payload';
+import { originalSource, selectContextSources } from './context-selection';
 import { randomUUID } from 'node:crypto';
 import { UserFlowStore } from './user-flows';
-import { flowInstructions } from '../ai/instructions';
-import { flowOutputSchema } from '../../shared/proposal-schema';
+import { flowInstructions, documentInstructions } from '../ai/instructions';
+import { flowOutputSchema, outputSchema } from '../../shared/proposal-schema';
 import type {
   ContextInput,
   ContextSnapshot,
   ContextSource,
-  Document,
   RejectionFeedback,
 } from '../../shared/contracts';
 import type { ProjectStore } from './store';
@@ -58,28 +59,9 @@ export async function buildContext(
     ws.documents.find((d) => d.id === id || d.sections.some((s) => s.id === id));
   for (const id of selected)
     if (!docFor(id)) throw new Error('선택한 문서를 찾을 수 없습니다. 최신 문서를 확인해 주세요.');
-  const source = (doc: Document, sectionId?: string): ContextSource => {
-    const section = doc.sections.find((s) => s.id === sectionId);
-    const offsets = [0];
-    for (let i = 0; i < doc.markdown.length; i++) if (doc.markdown[i] === '\n') offsets.push(i + 1);
-    const next = section && doc.sections[section.order + 1];
-    const range = section
-      ? {
-          start: offsets[section.line - 1],
-          end: next ? offsets[next.line - 1] : doc.markdown.length,
-        }
-      : undefined;
-    return {
-      id: sectionId || doc.id,
-      documentId: doc.id,
-      title: section?.title || doc.title,
-      revision: doc.revision,
-      content: range ? doc.markdown.slice(range.start, range.end) : doc.markdown,
-      complete: !sectionId,
-      sectionId,
-      range,
-    };
-  };
+  const source = originalSource;
+  if (input.mode === 'idea' && (selected.size || flowContext || revisionProposal || feedback))
+    throw new Error('아이디어 상담에는 문서나 기존 제안을 포함할 수 없습니다.');
   const sources: ContextSource[] = [];
   const omittedIds: string[] = [];
   for (const id of selected) {
@@ -100,6 +82,7 @@ export async function buildContext(
     instruction: input.instruction,
     project,
     sources,
+    requiresEvidence: input.mode !== 'idea',
     ...(flowContext ? { flowContext } : {}),
     decisions: ws.decisions,
     proposalHistory: ws.proposals
@@ -124,10 +107,6 @@ export async function buildContext(
     };
     snapshot.proposalHistory = snapshot.proposalHistory.map((p) => ({ ...p, reason: '' }));
   }
-  if (JSON.stringify(snapshot).length > limit)
-    throw new Error(
-      '필수 맥락이 너무 큽니다. 프로젝트 전체 분석에서 분할하거나 선택 범위를 줄여 주세요.',
-    );
   const linkedIds = new Set(
     ws.relations
       .filter(
@@ -155,33 +134,16 @@ export async function buildContext(
         words.filter((w) => b.title.toLowerCase().includes(w)).length -
           words.filter((w) => a.title.toLowerCase().includes(w)).length,
     );
-  for (const doc of candidates) {
-    if (sources.some((s) => s.documentId === doc.id) || excluded.has(doc.id)) continue;
-    const item = source(doc);
-    if (!doc.sections.some((s) => excluded.has(s.id))) {
-      sources.push(item);
-      if (JSON.stringify(snapshot).length <= limit) continue;
-      sources.pop();
-    }
-    omittedIds.push(doc.id);
-    const sections = doc.sections.filter(
-      (s) =>
-        !excluded.has(s.id) &&
-        (linkedIds.has(doc.id) ||
-          linkedIds.has(s.id) ||
-          words.some((w) => (s.title + ' ' + s.content).toLowerCase().includes(w))),
-    );
-    sections.sort(
-      (a, b) =>
-        words.filter((w) => b.title.toLowerCase().includes(w)).length -
-        words.filter((w) => a.title.toLowerCase().includes(w)).length,
-    );
-    for (const section of sections) {
-      sources.push(source(doc, section.id));
-      if (JSON.stringify(snapshot).length > limit) sources.pop();
-    }
-  }
-  for (const id of excluded) if (!omittedIds.includes(id)) omittedIds.push(id);
+  snapshot.relations = [];
+  snapshot.omittedRelationCount = ws.relations.length;
+  selectContextSources(
+    snapshot,
+    ws.documents,
+    input.mode === 'idea' ? [] : sources,
+    input.mode === 'idea' ? [] : candidates,
+    excluded,
+    limit,
+  );
   snapshot.relations = [];
   snapshot.omittedRelationCount = 0;
   for (const relation of ws.relations) {
@@ -190,26 +152,49 @@ export async function buildContext(
     if (
       !from ||
       !to ||
-      !sources.some((s) => s.documentId === from.id) ||
-      !sources.some((s) => s.documentId === to.id)
+      !snapshot.sources.some((s) => s.documentId === from.id) ||
+      !snapshot.sources.some((s) => s.documentId === to.id)
     )
       continue;
     snapshot.relations.push({ fromId: from.id, toId: to.id, type: relation.type });
-    if (JSON.stringify(snapshot).length > limit) {
+    if (JSON.stringify(contextPayload(snapshot)).length > limit) {
       snapshot.relations.pop();
       snapshot.omittedRelationCount++;
     }
   }
-  if (JSON.stringify(snapshot).length > limit)
+  if (JSON.stringify(contextPayload(snapshot)).length > limit)
     throw new Error('필수 맥락이 너무 큽니다. 선택 범위를 줄여 주세요.');
-  if (snapshot.flowContext)
-    snapshot.flowEstimate = {
-      inputTokens:
-        Buffer.byteLength(JSON.stringify(snapshot), 'utf8') +
-        Buffer.byteLength(JSON.stringify(flowOutputSchema), 'utf8') +
-        2 * Buffer.byteLength(flowInstructions, 'utf8') +
-        100,
-    };
+  const inputTokens =
+    Buffer.byteLength(JSON.stringify(contextPayload(snapshot)), 'utf8') +
+    Buffer.byteLength(JSON.stringify(flowContext ? flowOutputSchema : outputSchema), 'utf8') +
+    2 * Buffer.byteLength(flowContext ? flowInstructions : documentInstructions, 'utf8') +
+    100;
+  if (snapshot.flowContext) snapshot.flowEstimate = { inputTokens };
+  if (snapshot.selection) {
+    snapshot.selection.usedCharacters = JSON.stringify(contextPayload(snapshot)).length;
+    snapshot.selection.estimatedInputTokens = inputTokens;
+  }
   store.saveSnapshot(snapshot);
   return snapshot;
+}
+
+export function assertReviewedContext(current: ContextSnapshot, reviewed?: ContextSnapshot) {
+  const comparable = (s: ContextSnapshot) => ({
+    instruction: s.instruction,
+    project: s.project,
+    requiresEvidence: s.requiresEvidence,
+    sources: s.sources,
+    decisions: s.decisions,
+    proposalHistory: s.proposalHistory,
+    relations: s.relations,
+    flow: s.flowContext
+      ? { projectId: s.flowContext.projectId, baseFlow: s.flowContext.baseFlow }
+      : undefined,
+    revisionProposal: s.revisionProposal,
+    rejectedProposal: s.rejectedProposal,
+  });
+  if (!reviewed || JSON.stringify(comparable(current)) !== JSON.stringify(comparable(reviewed)))
+    throw new Error('검토한 맥락이 변경되었습니다. 최신 근거를 다시 확인해 주세요.');
+  if (current.flowContext && reviewed.flowContext)
+    current.flowContext.flowId = reviewed.flowContext.flowId;
 }

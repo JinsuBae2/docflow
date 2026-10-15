@@ -30,6 +30,7 @@ test('opens documents, reviews proposals, persists decisions and displays a rela
     await page.getByRole('button', { name: '안내 닫기' }).click();
     await expect(page.getByRole('button', { name: '예제 프로젝트 열기' })).toBeVisible();
     await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
+    await page.getByRole('button', { name: '문서', exact: true }).click();
     await expect(page.getByRole('heading', { name: '프로젝트 개요', exact: true })).toBeVisible();
     await page.getByRole('button', { name: '문서 구조', exact: true }).click();
     await expect(page.locator('.map-document')).toHaveCount(3);
@@ -224,6 +225,7 @@ test('onboards, previews local imports without losing drafts, saves the CLI mode
     await guide.getByRole('button', { name: '설정 저장' }).click();
     await expect(guide).toBeHidden();
     await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
+    await page.getByRole('button', { name: '문서', exact: true }).click();
     await page.getByRole('button', { name: 'Markdown 편집', exact: true }).click();
     const editor = page.getByRole('textbox', { name: 'Markdown 본문' });
     const draft = (await editor.inputValue()) + '\n미저장 초안 보존';
@@ -408,6 +410,7 @@ test('selects Claude, preserves provider models and routes validated proposals w
     await guide.getByLabel('AI 모델').selectOption('test-claude');
     await guide.getByRole('button', { name: '설정 저장' }).click();
     await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
+    await page.getByRole('button', { name: '문서', exact: true }).click();
     const before = await page.evaluate(() => window.workspace.current());
     await page.getByRole('textbox', { name: 'AI에게 요청' }).fill('의사결정 제안');
     await page.getByRole('button', { name: '요청 보내기' }).click();

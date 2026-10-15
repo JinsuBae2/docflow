@@ -30,39 +30,80 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
     });
     return;
   }
+  if (mode === 'instruction-isolation' && m.method === 'thread/start') {
+    const config = m.params.config;
+    const body = require('node:fs').readFileSync(config.model_instructions_file, 'utf8');
+    if (
+      config.project_doc_max_bytes !== 0 ||
+      config.project_doc_fallback_filenames.length ||
+      config.developer_instructions !== body ||
+      m.params.baseInstructions !== body ||
+      m.params.developerInstructions !== body ||
+      !body.includes('in-app planning conversation') ||
+      config['mcp_servers.fixture.enabled'] !== false ||
+      config['plugins.fixture.enabled'] !== false
+    ) {
+      send({ id: m.id, error: { message: 'Application instruction isolation missing' } });
+      return;
+    }
+  }
   const result =
-    m.method === 'account/read'
+    m.method === 'config/read' && mode === 'instruction-isolation'
       ? {
-          account:
-            mode === 'no-account' ? null : { type: mode === 'api-account' ? 'apiKey' : 'chatgpt' },
+          config: {
+            developer_instructions: '작업 결과 및 변경 사항',
+            model_instructions_file: '/missing/inherited.md',
+            mcp_servers: { fixture: {} },
+            plugins: { fixture: {} },
+          },
         }
-      : m.method === 'account/rateLimits/read'
+      : m.method === 'account/read'
         ? {
-            rateLimitsByLimitId: {
-              codex: {
-                primary: { usedPercent: 25, windowDurationMins: 300, resetsAt: 1800000000 },
-                secondary: { usedPercent: 40, windowDurationMins: 10080, resetsAt: 1800600000 },
-              },
-            },
+            account:
+              mode === 'no-account'
+                ? null
+                : { type: mode === 'api-account' ? 'apiKey' : 'chatgpt' },
           }
-        : m.method === 'model/list'
+        : m.method === 'account/rateLimits/read'
           ? {
-              data: [
-                { model: 'test-balanced', displayName: 'Test Balanced', isDefault: true },
-                { model: 'test-fast', displayName: 'Test Fast', isDefault: false },
-              ],
-              nextCursor: null,
+              rateLimitsByLimitId: {
+                codex: {
+                  primary: { usedPercent: 25, windowDurationMins: 300, resetsAt: 1800000000 },
+                  secondary: { usedPercent: 40, windowDurationMins: 10080, resetsAt: 1800600000 },
+                },
+              },
             }
-          : m.method === 'thread/start'
-            ? { thread: { id: 'test-thread' }, model: m.params.model || 'test-balanced' }
-            : m.method === 'turn/start'
-              ? { turn: { id: 'test-turn' } }
-              : {};
+          : m.method === 'model/list'
+            ? {
+                data: [
+                  { model: 'test-balanced', displayName: 'Test Balanced', isDefault: true },
+                  { model: 'test-fast', displayName: 'Test Fast', isDefault: false },
+                ],
+                nextCursor: null,
+              }
+            : m.method === 'thread/start'
+              ? { thread: { id: 'test-thread' }, model: m.params.model || 'test-balanced' }
+              : m.method === 'turn/start'
+                ? { turn: { id: 'test-turn' } }
+                : {};
   if (m.id !== undefined) send({ id: m.id, result });
   if (m.method === 'turn/start')
     setTimeout(
       () => {
         const context = JSON.parse(m.params.input[0].text);
+        if (
+          mode === 'instruction-isolation' &&
+          ('selection' in context || 'flowEstimate' in context)
+        ) {
+          send({
+            method: 'turn/completed',
+            params: {
+              threadId: 'test-thread',
+              turn: { status: 'failed', error: { message: 'Local selection diagnostics leaked' } },
+            },
+          });
+          return;
+        }
         if (context.rejectedProposal && process.env.DOCFLOW_TEST_FEEDBACK_FAILURE) {
           send({
             method: 'turn/completed',
@@ -135,6 +176,7 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
         let proposals = draft
           ? [draft, { ...draft, title: '추가 안내', reason: '사용자의 다음 행동을 안내합니다.' }]
           : [];
+        if (context.instruction.includes('발췌 확인만')) proposals = [];
         if (context.instruction.includes('관계 검토') && context.sources.length >= 2) {
           const from = context.sources[0];
           const to = context.sources[1];

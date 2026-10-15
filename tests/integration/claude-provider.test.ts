@@ -38,6 +38,49 @@ async function events(
 }
 
 describe('Claude API provider', () => {
+  it('blocks empty document evidence before any API or model discovery request', async () => {
+    const request = vi.fn();
+    const provider = new ClaudeProvider(() => 'fixture-key', request);
+    const result = [];
+    for await (const event of provider.run(
+      { ...context, requiresEvidence: true },
+      new AbortController().signal,
+      'test-claude',
+    ))
+      result.push(event);
+    expect(result.at(-1)).toMatchObject({
+      type: 'error',
+      message: expect.stringContaining('원문 근거'),
+    });
+    expect(request).not.toHaveBeenCalled();
+  });
+  it('uses planning instructions and keeps selection diagnostics out of the AI payload', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce(json(models))
+      .mockResolvedValueOnce(json(response));
+    const provider = new ClaudeProvider(() => 'fixture-key', request);
+    for await (const event of provider.run(
+      {
+        ...context,
+        selection: {
+          mode: 'full',
+          limit: 60000,
+          usedCharacters: 100,
+          estimatedInputTokens: 100,
+          omitted: [],
+          omittedDecisions: 0,
+          omittedHistory: 0,
+        },
+      },
+      new AbortController().signal,
+      'test-claude',
+    ))
+      void event;
+    const body = JSON.parse(request.mock.calls[1][1].body);
+    expect(JSON.stringify(body.system)).toContain('in-app planning conversation');
+    expect(JSON.stringify(body.messages)).not.toContain('estimatedInputTokens');
+  });
   it('forwards the explicit analysis output budget', async () => {
     const request = vi
       .fn()

@@ -12,6 +12,14 @@ AI가 반환한 내용을 바로 파일에 쓰지 않고, 구조 검증 → 근�
 
 Codex는 사용자가 설치한 CLI의 app-server에 연결하고, Claude는 main에서 Anthropic API에 직접 연결합니다. Claude 요청에는 공급한 맥락과 응답 스키마만 포함하며 도구 정의는 전송하지 않습니다. 제공자별 모델 선택을 분리해 기존 Codex 설정을 보존합니다.
 
+## 프로젝트 이해와 맥락 선택
+
+브리핑은 문서 유형·파일명, 확정 연결, 흐름과 제안 상태를 순수 함수로 집계합니다. AI 요약과 분리하며 마지막 편집 보기를 바꾸지 않고 다시 열 수 있는 진입점입니다.
+
+맥락 선택은 직렬화 예산 안에서 원문 전체 또는 정확한 UTF-16 범위를 고릅니다. 필수 문서의 메타데이터 공간을 먼저 확보하고 관련 섹션을 우선 배분합니다. 선택/제외 내역은 로컬 UI에만 표시하고 제공자 payload에서 제외합니다. 빈 근거 검사는 IPC와 각 제공자 양쪽에 두며, 검토 후 전송 시 소스 revision·범위·프로젝트·수정 대상이 같아야 합니다.
+
+앱 전용 지침은 짧은 기획 설명·확인된 문서 근거·제안 카드로 응답하도록 요구합니다. Codex 임시 작업 디렉터리에서 `project_doc_max_bytes=0`, 빈 fallback 목록, 앱 소유 `developer_instructions`/`model_instructions_file`과 thread 지침을 사용해 로컬 AGENTS·개발자 보고서 지침의 상속을 차단합니다. 로그인과 사용자 설정 파일을 수정하지 않습니다. 설정 의미는 [공식 설정 참조](https://learn.chatgpt.com/docs/config-file/config-reference)와 [AGENTS 탐색 규칙](https://learn.chatgpt.com/docs/config-file/config-advanced#project-instructions-discovery)을 따릅니다.
+
 ## 문서 구조와 사용자 흐름
 
 논리적 문서·섹션 ID와 관계는 보존하고, 화면에는 문서 카드만 투영합니다. 연결된 섹션 행은 원본 ID의 핸들을 사용하고 숨긴 행은 카드 경계로 위임합니다. 확정·미확정 상태를 분리한 연결 묶음은 선택 시 원래 연결로 펼칩니다. 집중 보기는 직접 연결된 문서만 임시 배치하며 이동량을 전체 지도 좌표에 반영합니다.
