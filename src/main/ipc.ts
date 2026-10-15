@@ -43,6 +43,7 @@ const str = z
 const id = z.string().min(1).max(250);
 const contextSchema = z
   .object({
+    flowId: id.nullable().optional(),
     instruction: z.string().min(1).max(10000),
     selectedIds: z.array(id).max(300),
     excludedIds: z.array(id).max(300),
@@ -157,7 +158,7 @@ const schemas: Record<string, z.ZodType> = {
   previewContext: z.tuple([contextSchema]),
   startRequest: z.tuple([contextSchema, id.optional()]),
   cancelRequest: z.tuple([]),
-  acceptProposal: z.tuple([id]),
+  acceptProposal: z.tuple([id, userFlowSchema.optional(), z.string().max(4000).optional()]),
   rejectProposal: z.tuple([id, z.string().max(3000).optional()]),
   providerStatus: z.tuple([z.enum(['codex', 'claude']).optional()]),
   sendRejection: z.tuple([id, z.string().max(3000), id, contextSchema, z.string().max(4000)]),
@@ -617,8 +618,11 @@ export function registerWorkspace(window: BrowserWindow) {
       case 'cancelRequest':
         controller?.abort();
         return;
-      case 'acceptProposal':
-        return new ProposalService(requireStore()).accept(args[0]);
+      case 'acceptProposal': {
+        const s = requireStore();
+        if (args[1] && args[2] !== s.root) throw new Error('프로젝트가 변경되었습니다.');
+        return new ProposalService(s).accept(args[0], args[1]);
+      }
       case 'rejectProposal': {
         if (controller) throw new Error('AI 요청이 끝난 뒤 제안을 거절해 주세요.');
         return new ProposalService(requireStore()).reject(args[0], args[1]);

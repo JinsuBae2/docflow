@@ -9,6 +9,7 @@ import ELK from 'elkjs/lib/elk-api.js';
 
 export function UserFlowWorkspace({
   workspace,
+  onRequestFlow,
   onRefresh,
   onEvidence,
   onDirty,
@@ -16,6 +17,7 @@ export function UserFlowWorkspace({
   focus,
 }: {
   workspace: Workspace;
+  onRequestFlow?: (flowId: string | null) => void;
   onRefresh: () => Promise<void>;
   onEvidence: (evidence: FlowEvidence) => void;
   onDirty: (dirty: boolean) => void;
@@ -47,6 +49,24 @@ export function UserFlowWorkspace({
           <h1>유저플로우</h1>
           <span>화면 이동과 사용자 행동, 조건 분기를 문서 근거와 함께 탐색합니다.</span>
         </div>
+        {onRequestFlow && (
+          <div className="flow-ai-actions">
+            <button
+              className="button"
+              disabled={importing || dirty}
+              onClick={() => onRequestFlow(null)}
+            >
+              AI로 플로우 생성
+            </button>
+            <button
+              className="button"
+              disabled={importing || dirty || !selected?.revision}
+              onClick={() => onRequestFlow(selected!.id)}
+            >
+              AI로 흐름 수정
+            </button>
+          </div>
+        )}
         <button
           className="button compact"
           disabled={importing}

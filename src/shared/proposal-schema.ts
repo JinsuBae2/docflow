@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { userFlowSchema } from './user-flow';
 export const documentTypeSchema = z.enum(['overview', 'prd', 'feature', 'flow', 'design', 'note']);
 const documentProposalSchema = z
   .object({
@@ -28,8 +29,28 @@ const relationProposalSchema = documentProposalSchema.extend({
     })
     .strict(),
 });
-export const proposalDraftSchema = z.union([documentProposalSchema, relationProposalSchema]);
+const flowProposalSchema = documentProposalSchema.extend({
+  kind: z.literal('flow'),
+  flow: userFlowSchema,
+});
+export const proposalDraftSchema = z.union([
+  documentProposalSchema,
+  relationProposalSchema,
+  flowProposalSchema,
+]);
 export const responseSchema = z
   .object({ message: z.string().max(30000), proposals: z.array(proposalDraftSchema).max(8) })
   .strict();
-export const outputSchema = z.toJSONSchema(responseSchema);
+export const outputSchema = z.toJSONSchema(
+  z
+    .object({
+      message: z.string().max(30000),
+      proposals: z.array(z.union([documentProposalSchema, relationProposalSchema])).max(8),
+    })
+    .strict(),
+);
+export const flowOutputSchema = z.toJSONSchema(
+  z
+    .object({ message: z.string().max(30000), proposals: z.array(flowProposalSchema).max(1) })
+    .strict(),
+);

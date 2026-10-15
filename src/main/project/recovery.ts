@@ -15,6 +15,7 @@ export interface RecoveryOperation {
   before: string | null;
   after: string;
   record: unknown;
+  recordKind?: 'flow';
   proposalId?: string;
 }
 export function commitFile(

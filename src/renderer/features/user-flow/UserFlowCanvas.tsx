@@ -16,6 +16,8 @@ import type { Document } from '../../../shared/contracts';
 import { projectUserFlow, type UserFlow, type FlowEvidence } from '../../../shared/user-flow';
 import { UserFlowNodeCard, type SemanticFlowNode } from './UserFlowNodes';
 import type { FlowLayout } from './layout';
+import type { FlowChanges } from '../../../shared/flow-proposal-preview';
+import { flowNodeGeometry } from './node-geometry';
 
 const nodeTypes = { semantic: UserFlowNodeCard };
 function FlowEdge(props: EdgeProps) {
@@ -48,6 +50,7 @@ function FlowEdge(props: EdgeProps) {
 const edgeTypes = { flow: FlowEdge };
 export function UserFlowCanvas({
   flow,
+  changes: diffChanges,
   documents,
   paths,
   focusId,
@@ -56,6 +59,7 @@ export function UserFlowCanvas({
   onEvidence,
 }: {
   flow: UserFlow;
+  changes?: FlowChanges;
   documents: Document[];
   paths: FlowLayout['paths'];
   focusId?: string;
@@ -107,20 +111,23 @@ export function UserFlowCanvas({
         : node.type === 'condition'
           ? node.data.outputs || []
           : [{ id: 'out' }];
+    const geometry = flowNodeGeometry(node, inputs, outputs);
     return {
+      ...geometry,
       id: node.id,
       type: 'semantic',
       parentId: node.parentId,
       extent: node.extent,
       position: moving[node.id] || node.position || { x: 0, y: 0 },
       style: {
-        width: node.collapsed ? 250 : node.width || 250,
-        height: node.collapsed ? 110 : node.height || 140,
+        width: geometry.width,
+        height: geometry.height,
       },
       selected: focus === node.id,
       draggable: !disabled,
       data: {
         node,
+        change: diffChanges?.nodes[node.id],
         documents,
         inputs,
         outputs,
@@ -198,8 +205,19 @@ export function UserFlowCanvas({
             !flow.nodes.some((node) => node.collapsed) &&
             edge.source === original.source &&
             edge.target === original.target;
+          const change = diffChanges?.edges[edge.id];
+          const color =
+            change?.status === 'added'
+              ? '#18864b'
+              : change?.status === 'deleted'
+                ? '#c43e4b'
+                : change?.status === 'modified'
+                  ? '#b96a11'
+                  : 'var(--muted)';
           return {
             id: edge.id,
+            className: change ? `flow-edge-${change.status}` : undefined,
+            animated: change?.status === 'added',
             source: edge.source,
             target: edge.target,
             sourceHandle: edge.sourceHandle,
@@ -208,7 +226,12 @@ export function UserFlowCanvas({
             type: 'flow',
             data: { points: intact ? paths[edge.id] : undefined },
             markerEnd: { type: MarkerType.ArrowClosed },
-            style: { stroke: 'var(--muted)', strokeWidth: 1.6 },
+            style: {
+              stroke: color,
+              strokeWidth: change && change.status !== 'unchanged' ? 2.5 : 1.6,
+              strokeDasharray: change?.status === 'deleted' ? '6 4' : undefined,
+              opacity: change?.status === 'deleted' ? 0.5 : 1,
+            },
           };
         })}
         nodeTypes={nodeTypes}

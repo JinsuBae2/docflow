@@ -2,6 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { ContextSnapshot, Proposal } from '../../shared/contracts';
 import { responseSchema } from '../../shared/proposal-schema';
 import type { ProjectStore } from './store';
+import { prepareFlowProposal, acceptFlowProposal } from './flow-proposals';
+import type { UserFlow } from '../../shared/user-flow';
 export class ProposalService {
   constructor(private store: ProjectStore) {}
   async register(snapshotId: string, raw: unknown, replacesId?: string): Promise<Proposal[]> {
@@ -10,6 +12,11 @@ export class ProposalService {
     const batch = this.store.get<{ id: string; proposalIds: string[] }>('batch', context.requestId);
     if (batch) return batch.proposalIds.map((id) => this.store.get<Proposal>('proposal', id)!);
     const response = responseSchema.parse(raw);
+    if (
+      context.flowContext &&
+      (response.proposals.length > 1 || response.proposals.some((draft) => draft.kind !== 'flow'))
+    )
+      throw new Error('유저플로우 요청은 플로우 제안 하나만 반환할 수 있습니다.');
     const allowedSources = new Set(context.sources.map((s) => s.id));
     const proposals: Proposal[] = response.proposals.map((draft) => {
       if (draft.sourceIds.some((id) => !allowedSources.has(id)))
@@ -37,7 +44,7 @@ export class ProposalService {
             throw new Error(
               '수정안에서 기존 섹션 ID가 누락되었습니다. ID를 유지하도록 다시 요청해 주세요.',
             );
-      } else if (draft.targetId !== null || draft.baseRevision !== null)
+      } else if (draft.kind !== 'flow' && (draft.targetId !== null || draft.baseRevision !== null))
         throw new Error('새 문서와 결정 제안에는 수정 대상이 없어야 합니다.');
       if (draft.kind !== 'update' && draft.scopedSourceId)
         throw new Error('범위 수정은 update 제안에만 허용됩니다.');
@@ -64,6 +71,7 @@ export class ProposalService {
         throw new Error('선행 제안을 찾을 수 없습니다.');
       return {
         ...draft,
+        ...(draft.kind === 'flow' ? prepareFlowProposal(draft, context, this.store) : {}),
         sourceRanges: context.sources
           .filter((s) => draft.sourceIds.includes(s.id) && s.range)
           .map((s) => ({ id: s.id, documentId: s.documentId, ...s.range! })),
@@ -91,7 +99,7 @@ export class ProposalService {
     });
     return proposals;
   }
-  async accept(id: string) {
+  async accept(id: string, laidFlow?: UserFlow) {
     const proposal = this.store.get<Proposal>('proposal', id);
     if (!proposal || proposal.status !== 'pending')
       throw new Error('검토 대기 중인 제안만 수락할 수 있습니다.');
@@ -101,7 +109,9 @@ export class ProposalService {
       )
     )
       throw new Error('선행 제안을 먼저 수락해 주세요.');
-    if (proposal.kind === 'relation') {
+    if (proposal.kind === 'flow') {
+      acceptFlowProposal(this.store, proposal, laidFlow);
+    } else if (proposal.kind === 'relation') {
       const relation = proposal.relation;
       const docs = this.store.listDocuments();
       if (

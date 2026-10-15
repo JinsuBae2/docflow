@@ -11,9 +11,9 @@ import type {
   ProviderStatus,
   UsageLimits,
 } from '../../shared/contracts';
-import { outputSchema, responseSchema } from '../../shared/proposal-schema';
+import { outputSchema, flowOutputSchema, responseSchema } from '../../shared/proposal-schema';
 import type { AiProvider } from './provider';
-import { documentInstructions } from './instructions';
+import { documentInstructions, flowInstructions } from './instructions';
 import { codexLimits, normalizeCodexUsage } from './usage';
 
 type RpcMessage = {
@@ -332,7 +332,7 @@ export class CodexProvider implements AiProvider {
         if (m.method === 'error' && !m.params?.willRetry)
           push({ type: 'error', message: m.params.error?.message || 'Codex 요청 오류' }, true);
       };
-      const instructions = documentInstructions;
+      const instructions = context.flowContext ? flowInstructions : documentInstructions;
       const inherited = await this.rpc('config/read', { includeLayers: false });
       const overrides: Record<string, unknown> = {
         'features.shell_tool': false,
@@ -364,7 +364,7 @@ export class CodexProvider implements AiProvider {
       const turn = await this.rpc('turn/start', {
         threadId,
         input: [{ type: 'text', text: JSON.stringify(context) }],
-        outputSchema,
+        outputSchema: context.flowContext ? flowOutputSchema : outputSchema,
         permissions: 'docflow',
         approvalPolicy: 'never',
         ...(model ? { model } : {}),

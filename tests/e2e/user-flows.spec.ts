@@ -228,6 +228,14 @@ test('renders semantic flows, preserves manual positions, projects collapsed edg
     const viewportBeforeCollapse = await canvas
       .locator('.react-flow__viewport')
       .getAttribute('style');
+    // Remounting a projected graph must not depend on asynchronous DOM measurements.
+    await page.evaluate(() => {
+      window.ResizeObserver = class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      } as typeof ResizeObserver;
+    });
     await page.getByRole('button', { name: '온보딩 접기', exact: true }).click();
     await expect(canvas.locator('.user-flow-card')).toHaveCount(2);
     try {
