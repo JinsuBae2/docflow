@@ -3,6 +3,7 @@ import { Handle, Position, useUpdateNodeInternals, type Node, type NodeProps } f
 import { Database, MousePointer2, GitFork } from 'lucide-react';
 import type { Document } from '../../../shared/contracts';
 import type { FlowChange } from '../../../shared/flow-proposal-preview';
+import { flowNodeGeometry } from './node-geometry';
 import type { FlowEvidence, UserFlowNode } from '../../../shared/user-flow';
 
 export type SemanticFlowNode = Node<
@@ -20,6 +21,7 @@ export type SemanticFlowNode = Node<
 
 export function UserFlowNodeCard({ data }: NodeProps<SemanticFlowNode>) {
   const { node, documents, inputs, outputs, change } = data;
+  const geometry = flowNodeGeometry(node, inputs, outputs);
   const updateNodeInternals = useUpdateNodeInternals();
   const handles = JSON.stringify({ inputs, outputs, collapsed: node.collapsed });
   useLayoutEffect(() => {
@@ -102,32 +104,28 @@ export function UserFlowNodeCard({ data }: NodeProps<SemanticFlowNode>) {
           );
         })}
       </div>
-      {inputs.map((id, index) => (
+      {inputs.map((id) => (
         <Handle
           key={id}
           id={id}
           type="target"
           position={Position.Left}
           style={{
-            top:
-              node.type === 'group' && !node.collapsed
-                ? 70
-                : `${(100 * (index + 1)) / (inputs.length + 1)}%`,
+            top: geometry.handles.find((handle) => handle.type === 'target' && handle.id === id)!.y,
           }}
           isConnectable={false}
         />
       ))}
-      {outputs.map((port, index) => (
+      {outputs.map((port) => (
         <Handle
           key={port.id}
           id={port.id}
           type="source"
           position={Position.Right}
           style={{
-            top:
-              node.type === 'group' && !node.collapsed
-                ? 70
-                : `${(100 * (index + 1)) / (outputs.length + 1)}%`,
+            top: geometry.handles.find(
+              (handle) => handle.type === 'source' && handle.id === port.id,
+            )!.y,
           }}
           isConnectable={false}
         >

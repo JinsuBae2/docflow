@@ -13,12 +13,16 @@
 ## 검증
 
 - `npm run typecheck`, `npm run lint`, `npm run format:check`, `npm run build`: 통과.
-- `npm test`: 127개 통과, 실계정 테스트 5개 건너뜀.
+- `npm test`: 129개 통과, 실계정 테스트 5개 건너뜀.
 - `npm run test:e2e`: 18개 통과(1.2분), 기존17개 + AI 플로우1개.
 - 새 E2E: AI 생성 → 추가 Diff/수락 전 파일 불변 → 수락/좌표 저장 → 수정·삭제 Diff → 사유 거절/원본 불변 → 후속 제안 → 수정 수락/기존 좌표 유지. 노드 겹침도 검사.
 - 독립 리뷰 4건을 RED→GREEN 회귀 테스트로 수정: 섹션 후속 요청 범위 유지, 그룹 유형 변경 후 ghost 배치, 파일 교체 후 수락 상태 복구, 유지 그룹 내부 ghost 공간 예약.
 - 공개 예제 데이터의 캔버스 화면을 직접 확인: `docs/images/user-flow-proposal-diff.png`.
-- 첫 전체 단위 실행은 스키마 크기 증가로 기존 분석 예산 검사9건과 과부하 테스트1건이 실패했다. 전용 스키마 분리 후 관련13개, 최종 단독 전체127개가 통과했다. 제한 시간을 늘리지 않았다.
+- 첫 전체 단위 실행은 스키마 크기 증가로 기존 분석 예산 검사9건과 과부하 테스트1건이 실패했다. 전용 스키마 분리 후 관련13개, 최종 단독 전체129개가 통과했다. 제한 시간을 늘리지 않았다.
+
+## CI 후속 보완 — 2026-10-15
+
+최초 PR CI38522237121은 새 AI 제안 테스트가 양쪽 OS에서 통과했지만 기존 접기·펼치기 테스트의 연결선 초기화에서 실패했다. ResizeObserver 콜백을 차단하는 로컬 회귀로 같은 연결선0개/숨김 노드를 재현했다. 카드 크기와 핸들 위치를 초기 React Flow 데이터로 전달하여 DOM 측정 대기에 의존하지 않게 했고, 화면 핸들도 같은 geometry helper를 사용한다. 타임아웃·재시도 증가는 없다. 보완 후 단위129개, 관련 Electron2개가 통과했다.
 
 ## 사용 안내
 
@@ -59,3 +63,9 @@
 - `tests/integration/flow-providers.test.ts`
 - `tests/integration/user-flow-proposals.test.ts`
 - `tests/unit/flow-proposal-preview.test.ts`
+
+추가 변경 파일:
+
+- `src/renderer/features/user-flow/node-geometry.ts`
+- `tests/unit/user-flow-node-geometry.test.ts`
+- `tests/e2e/user-flows.spec.ts`

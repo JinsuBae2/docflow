@@ -17,6 +17,7 @@ import { projectUserFlow, type UserFlow, type FlowEvidence } from '../../../shar
 import { UserFlowNodeCard, type SemanticFlowNode } from './UserFlowNodes';
 import type { FlowLayout } from './layout';
 import type { FlowChanges } from '../../../shared/flow-proposal-preview';
+import { flowNodeGeometry } from './node-geometry';
 
 const nodeTypes = { semantic: UserFlowNodeCard };
 function FlowEdge(props: EdgeProps) {
@@ -110,15 +111,17 @@ export function UserFlowCanvas({
         : node.type === 'condition'
           ? node.data.outputs || []
           : [{ id: 'out' }];
+    const geometry = flowNodeGeometry(node, inputs, outputs);
     return {
+      ...geometry,
       id: node.id,
       type: 'semantic',
       parentId: node.parentId,
       extent: node.extent,
       position: moving[node.id] || node.position || { x: 0, y: 0 },
       style: {
-        width: node.collapsed ? 250 : node.width || 250,
-        height: node.collapsed ? 110 : node.height || 140,
+        width: geometry.width,
+        height: geometry.height,
       },
       selected: focus === node.id,
       draggable: !disabled,
