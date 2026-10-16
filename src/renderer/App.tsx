@@ -263,7 +263,7 @@ export default function App() {
   const select = (id: string, next = workspace) => {
     const target = next?.documents.find((d) => d.id === id || d.sections.some((s) => s.id === id));
     if (!target) return;
-    if ((target.id !== doc?.id || flowEditing) && !mayLeave()) return;
+    if ((target.id !== doc?.id || flowEditing || view === 'planning') && !mayLeave()) return;
     setSelectedId(target.id);
     setSectionId(id === target.id ? '' : id);
     setView('document');

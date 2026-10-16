@@ -104,6 +104,21 @@ test('starts a blank software project, carries conversation, restores notes and 
     await page.locator('.view-tabs').getByRole('button', { name: '문서', exact: true }).click();
     await expect(page.locator('.document-surface')).toContainText('운영자를 위한 경보 검토 도구');
     await page.getByRole('button', { name: '아이디어 기획', exact: true }).click();
+    await page.getByRole('textbox', { name: '확정 내용', exact: true }).fill('미저장 기획 보호');
+    await page.evaluate(() => (window.confirm = () => false));
+    const accepted = (await page.evaluate(() => window.workspace.current()))!.documents[0];
+    await page
+      .locator('nav')
+      .getByRole('button')
+      .filter({ hasText: accepted.title })
+      .first()
+      .click();
+    await expect(page.getByRole('textbox', { name: '확정 내용', exact: true })).toHaveValue(
+      '미저장 기획 보호',
+    );
+    await page.getByRole('button', { name: '기획 저장', exact: true }).click();
+    await expect(page.getByRole('status').filter({ hasText: '기획 저장됨' })).toBeVisible();
+
     await page.getByRole('button', { name: '새 계획 세우기', exact: true }).click();
     await expect(page.getByRole('combobox', { name: '기획 단계' })).toHaveValue('scope');
     await expect(page.getByRole('textbox', { name: '확정 내용', exact: true })).toHaveValue('');
@@ -124,6 +139,9 @@ test('starts a blank software project, carries conversation, restores notes and 
     await expect(page.getByText(/예상 입력/)).toBeVisible();
     await page.getByRole('dialog').getByRole('button', { name: '닫기', exact: true }).click();
   } finally {
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows().forEach((window) => window.destroy()),
+    );
     await app.close();
     await rm(data, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
   }
@@ -160,7 +178,7 @@ test('keeps long and failed conversations, protects unsaved notes and fits narro
       DOCFLOW_DATA_DIR: data,
       DOCFLOW_TEST_NODE: process.execPath,
       DOCFLOW_TEST_FIXTURE: resolve('tests/fixtures/fake-codex.cjs'),
-      DOCFLOW_TEST_DELAY_MS: '500',
+      DOCFLOW_TEST_DELAY_MS: '2000',
     },
   });
   try {
@@ -204,6 +222,9 @@ test('keeps long and failed conversations, protects unsaved notes and fits narro
       page.getByText('이전 설명을 이어갑니다: 사용량 실패', { exact: true }),
     ).toBeVisible();
     expect((await page.evaluate(() => window.workspace.current()))!.messages).toHaveLength(4);
+    await app.evaluate(() => {
+      process.env.DOCFLOW_TEST_DELAY_MS = '10000';
+    });
     await page.getByRole('textbox', { name: 'AI에게 요청' }).fill('취소할 설명도 보존');
     await page.getByRole('button', { name: '요청 보내기', exact: true }).click();
     await page.getByRole('button', { name: '요청 취소', exact: true }).click();
