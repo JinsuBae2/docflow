@@ -74,7 +74,7 @@ test('opens documents, reviews proposals, persists decisions and displays a rela
     expect(
       await page.locator('.diagram-canvas svg').evaluate((el) => el.getBoundingClientRect().width),
     ).toBeGreaterThan(fitWidth);
-    await page.getByRole('button', { name: '배율 초기화' }).click();
+    await page.getByRole('button', { name: '화면에 맞추기' }).click();
     await page.keyboard.press('Escape');
     await page.screenshot({ path: 'outputs/desktop.png', fullPage: true });
     await page.setViewportSize({ width: 1024, height: 768 });

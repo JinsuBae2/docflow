@@ -101,6 +101,11 @@ test('renders semantic flows, preserves manual positions, projects collapsed edg
       evidence: [],
     }));
     await page.getByRole('textbox', { name: '유저플로우 JSON' }).fill(JSON.stringify(draft));
+    await page.getByRole('button', { name: '다이어그램 확대 보기', exact: true }).click();
+    await page.keyboard.press('Escape');
+    await expect(page.getByRole('textbox', { name: '유저플로우 JSON' })).toHaveValue(
+      JSON.stringify(draft),
+    );
     await page.getByRole('button', { name: 'JSON 저장', exact: true }).click();
     const canvas = page.getByLabel('유저플로우 캔버스');
     await expect(canvas.locator('.user-flow-card')).toHaveCount(7);
@@ -113,6 +118,15 @@ test('renders semantic flows, preserves manual positions, projects collapsed edg
     const original = (await page.evaluate(() => window.workspace.current()))!.userFlows!.find(
       (flow) => flow.id === draft.id,
     )!;
+    await page.setViewportSize({ width: 1600, height: 1050 });
+    await page.getByRole('button', { name: '다이어그램 확대 보기', exact: true }).click();
+    await expect.poll(async () => (await canvas.boundingBox())!.height).toBeGreaterThan(700);
+    await page.keyboard.press('Escape');
+    expect(
+      (await page.evaluate(() => window.workspace.current()))!.userFlows!.find(
+        (flow) => flow.id === draft.id,
+      )!.nodes,
+    ).toEqual(original.nodes);
     await canvas.locator('.react-flow__controls-fitview').click();
     await page.evaluate(
       () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),

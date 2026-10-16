@@ -55,6 +55,29 @@ export function Diagram({
   const [svg, setSvg] = useState('');
   const [error, setError] = useState('');
   const [zoom, setZoom] = useState(1);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const canvas = useRef<HTMLDivElement>(null);
+  const scroll = useRef<HTMLDivElement>(null);
+  const fitToView = () => {
+    const bounds = canvas.current?.querySelector('svg')?.viewBox.baseVal;
+    const area = scroll.current;
+    if (!bounds?.width || !bounds.height || !area) return;
+    setSize({ width: bounds.width, height: bounds.height });
+    setZoom(
+      Math.max(
+        0.05,
+        Math.min(
+          1,
+          (area.clientWidth - 48) / bounds.width,
+          (area.clientHeight - 48) / bounds.height,
+        ),
+      ),
+    );
+    area.scrollTo(0, 0);
+  };
+  useEffect(() => {
+    if (svg) fitToView();
+  }, [svg]);
   const [editing, setEditing] = useState<ProjectFlow | null>(null);
   const [sourceOpen, setSourceOpen] = useState(false);
   const revisions = useRef(new Map<string, string>());
@@ -202,18 +225,18 @@ export function Diagram({
                   <button
                     className="icon-button"
                     title="축소"
-                    onClick={() => setZoom((zoom) => Math.max(0.5, zoom - 0.2))}
+                    onClick={() => setZoom((zoom) => Math.max(0.05, zoom / 1.2))}
                   >
                     <ZoomOut size={16} />
                   </button>
                   <button
                     className="icon-button"
                     title="확대"
-                    onClick={() => setZoom((zoom) => Math.min(2, zoom + 0.2))}
+                    onClick={() => setZoom((zoom) => Math.min(4, zoom * 1.2))}
                   >
                     <ZoomIn size={16} />
                   </button>
-                  <button className="icon-button" title="배율 초기화" onClick={() => setZoom(1)}>
+                  <button className="icon-button" title="화면에 맞추기" onClick={fitToView}>
                     <RotateCcw size={14} />
                   </button>
                 </div>
@@ -235,13 +258,13 @@ export function Diagram({
                   <p>{error}</p>
                 </div>
               ) : (
-                <div className="diagram-scroll">
+                <div ref={scroll} className="diagram-scroll">
                   <div
+                    ref={canvas}
                     className="diagram-canvas"
                     style={{
-                      width: `${zoom * 100}%`,
-                      height: `${zoom * 100}%`,
-                      minWidth: zoom > 1 ? `${zoom * 100}%` : undefined,
+                      width: size.width * zoom,
+                      height: size.height * zoom,
                     }}
                     dangerouslySetInnerHTML={{ __html: svg }}
                   />
