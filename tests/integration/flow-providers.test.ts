@@ -85,3 +85,77 @@ function withNullFields(response: any) {
   response.proposals[0].scopedSourceId = null;
   return response;
 }
+
+it.each(['codex', 'claude'])(
+  'forwards planning history and parses reviewed notes with %s',
+  async (kind) => {
+    const planningContext: ContextSnapshot = {
+      ...context,
+      sources: [],
+      requiresEvidence: false,
+      flowContext: undefined,
+      planningContext: {
+        sessionId: 'planning',
+        revision: 'revision',
+        mode: 'brainstorm',
+        stage: 'problem',
+        brief: { confirmed: '', openQuestions: '', assumptions: '' },
+        action: 'discuss',
+        omittedMessageCount: 0,
+        messages: [
+          {
+            id: 'previous',
+            role: 'user',
+            text: '운영자용 경보 검토 도구',
+            requestId: 'previous-request',
+          },
+        ],
+      },
+    };
+    const response = createRequire(import.meta.url)('../fixtures/planning-response.cjs');
+    const provider =
+      kind === 'codex'
+        ? new CodexProvider(process.execPath, [resolve('tests/fixtures/fake-codex.cjs')])
+        : new ClaudeProvider(
+            () => 'fixture',
+            async (url, options) => {
+              if (String(url).includes('/models'))
+                return new Response(
+                  JSON.stringify({ data: [{ id: 'test', display_name: 'Test' }], has_more: false }),
+                );
+              const body = JSON.parse(String(options?.body));
+              return new Response(
+                JSON.stringify({
+                  stop_reason: 'end_turn',
+                  content: [
+                    {
+                      type: 'text',
+                      text: JSON.stringify(response(JSON.parse(body.messages[0].content))),
+                    },
+                  ],
+                }),
+              );
+            },
+          );
+    try {
+      const events: AiEvent[] = [];
+      for await (const event of provider.run(
+        planningContext,
+        new AbortController().signal,
+        kind === 'claude' ? 'test' : undefined,
+      ))
+        events.push(event);
+      expect(events.filter((event) => event.type === 'error')).toEqual([]);
+      const result = events.find((event) => event.type === 'result');
+      expect(result?.type === 'result' && result.response.message).toContain(
+        '운영자용 경보 검토 도구',
+      );
+      expect(result?.type === 'result' && result.response.planningSuggestion?.confirmed).toBe(
+        '운영자용 경보 검토 도구',
+      );
+      expect(result?.type === 'result' && result.response.proposals).toEqual([]);
+    } finally {
+      await provider.close();
+    }
+  },
+);

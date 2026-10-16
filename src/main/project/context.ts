@@ -1,6 +1,8 @@
 import { contextPayload } from '../../shared/context-payload';
 import { originalSource, selectContextSources } from './context-selection';
 import { randomUUID } from 'node:crypto';
+import { PlanningSessionStore } from './planning';
+import { attachPlanningContext } from './planning-context';
 import { UserFlowStore } from './user-flows';
 import { flowInstructions, documentInstructions } from '../ai/instructions';
 import { flowOutputSchema, outputSchema } from '../../shared/proposal-schema';
@@ -18,6 +20,18 @@ export async function buildContext(
   feedbackId?: string,
 ): Promise<ContextSnapshot> {
   const ws = store.workspace();
+  if (input.planningAction && !input.planningSessionId)
+    throw new Error('기획 세션을 선택해 주세요.');
+  if (
+    input.planningSessionId &&
+    (input.mode !== 'idea' ||
+      input.selectedIds.length ||
+      input.excludedIds.length ||
+      input.flowId !== undefined ||
+      replacesId ||
+      feedbackId)
+  )
+    throw new Error('기획 대화는 문서/유저플로우 검토와 별도로 진행해 주세요.');
   const excluded = new Set(input.excludedIds);
   const selected = new Set(input.selectedIds);
   const revisionProposal = replacesId ? ws.proposals.find((p) => p.id === replacesId) : undefined;
@@ -97,6 +111,17 @@ export async function buildContext(
     omittedIds,
   };
   const limit = input.maxCharacters ?? 60000;
+  if (input.planningSessionId) {
+    attachPlanningContext(
+      snapshot,
+      new PlanningSessionStore(store).read(input.planningSessionId),
+      ws.messages,
+      input.planningAction || 'discuss',
+      limit,
+    );
+    store.saveSnapshot(snapshot);
+    return snapshot;
+  }
   if (revisionProposal) snapshot.revisionProposal = revisionProposal;
   if (rejected && feedback) {
     snapshot.rejectedProposal = {
@@ -181,6 +206,7 @@ export async function buildContext(
 export function assertReviewedContext(current: ContextSnapshot, reviewed?: ContextSnapshot) {
   const comparable = (s: ContextSnapshot) => ({
     instruction: s.instruction,
+    planningContext: s.planningContext,
     project: s.project,
     requiresEvidence: s.requiresEvidence,
     sources: s.sources,

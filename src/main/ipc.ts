@@ -49,6 +49,8 @@ const id = z.string().min(1).max(250);
 const contextSchema = z
   .object({
     flowId: id.nullable().optional(),
+    planningSessionId: id.optional(),
+    planningAction: z.enum(['discuss', 'draft']).optional(),
     mode: z.enum(['documents', 'idea']).optional(),
     reviewedContextId: id.optional(),
     instruction: z.string().min(1).max(10000),
@@ -703,6 +705,21 @@ export function registerWorkspace(window: BrowserWindow) {
             throw new Error(
               '요청 맥락에 미저장 초안이 있습니다. 초안을 저장하거나 해당 문서를 제외해 주세요.',
             );
+          if (snapshot.planningContext) {
+            s.transaction(() => {
+              s.put('message', {
+                id: randomUUID(),
+                role: 'user',
+                text: input.instruction,
+                requestId: snapshot.requestId,
+                createdAt: new Date().toISOString(),
+              });
+              new PlanningSessionStore(s).attachRequest(
+                snapshot.planningContext!.sessionId,
+                snapshot.requestId,
+              );
+            });
+          }
           if (feedback) feedbackService.setStatus(feedback.id, 'running', snapshot.requestId);
           provider = makeProvider(preferences.provider);
         } catch (error) {
@@ -720,7 +737,7 @@ export function registerWorkspace(window: BrowserWindow) {
           status: 'running',
           usage: normalizeCodexUsage(undefined),
         };
-        if (!feedback) {
+        if (!feedback && !snapshot.planningContext) {
           const userMessage: Message = {
             id: randomUUID(),
             role: 'user',
@@ -764,6 +781,25 @@ export function registerWorkspace(window: BrowserWindow) {
                 if (currentController.signal.aborted) {
                   terminal = { type: 'cancelled' };
                   break;
+                }
+                if (snapshot.planningContext) {
+                  const planning = new PlanningSessionStore(s);
+                  const current = planning.read(snapshot.planningContext.sessionId);
+                  if (current.revision !== snapshot.planningContext.revision)
+                    throw new Error('기획이 변경되었습니다. 다시 요청해 주세요.');
+                  if (
+                    aiEvent.response.proposals.some((proposal) => proposal.kind !== 'create') ||
+                    (snapshot.planningContext.action === 'discuss' &&
+                      aiEvent.response.proposals.length)
+                  )
+                    throw new Error('기획 대화에는 요청한 새 문서 초안만 제안할 수 있습니다.');
+                  if (aiEvent.response.planningSuggestion)
+                    planning.suggest(
+                      current.id,
+                      current.revision,
+                      requestId,
+                      aiEvent.response.planningSuggestion,
+                    );
                 }
                 await new ProposalService(s).register(snapshot.id, aiEvent.response, replacesId);
                 s.put('message', {

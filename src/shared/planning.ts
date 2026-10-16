@@ -53,6 +53,7 @@ export function isPlanningStart(documents: Pick<Document, 'markdown' | 'title'>[
   });
 }
 export interface PlanningContext {
+  omittedMessageCount: number;
   sessionId: string;
   revision: string;
   mode: PlanningMode;

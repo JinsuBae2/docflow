@@ -9,12 +9,12 @@ import type {
   UsageReport,
 } from '../../shared/contracts';
 import {
-  outputSchema,
-  flowOutputSchema,
-  responseSchema,
+  requestOutputSchema,
+  requestResponseSchema,
+  normalizePlanningResponse,
   normalizeAiResponse,
 } from '../../shared/proposal-schema';
-import { documentInstructions, flowInstructions } from './instructions';
+import { documentInstructions, flowInstructions, planningInstructions } from './instructions';
 import { claudeLimits, normalizeClaudeUsage } from './usage';
 
 // The API accepts a subset of JSON Schema; full bounds remain enforced locally.
@@ -189,12 +189,16 @@ export class ClaudeProvider implements AiProvider {
         {
           model,
           max_tokens: context.budget?.outputTokens ?? 8192,
-          system: context.flowContext ? flowInstructions : documentInstructions,
+          system: context.planningContext
+            ? planningInstructions
+            : context.flowContext
+              ? flowInstructions
+              : documentInstructions,
           messages: [{ role: 'user', content: JSON.stringify(contextPayload(context)) }],
           output_config: {
             format: {
               type: 'json_schema',
-              schema: apiSchema(context.flowContext ? flowOutputSchema : outputSchema),
+              schema: apiSchema(requestOutputSchema(context)),
             },
           },
         },
@@ -215,8 +219,10 @@ export class ClaudeProvider implements AiProvider {
         result.content.some((item: any) => item.type !== 'text')
       )
         throw new Error('Claude 응답이 완성되지 않았습니다. 문서는 변경하지 않았습니다.');
-      const parsed = responseSchema.safeParse(
-        normalizeAiResponse(JSON.parse(result.content.map((item: any) => item.text).join(''))),
+      const parsed = requestResponseSchema(context).safeParse(
+        (context.planningContext ? normalizePlanningResponse : normalizeAiResponse)(
+          JSON.parse(result.content.map((item: any) => item.text).join('')),
+        ),
       );
       if (!parsed.success)
         throw new Error('Claude 응답 형식이 올바르지 않습니다. 문서는 변경하지 않았습니다.');
