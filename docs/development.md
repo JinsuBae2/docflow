@@ -22,9 +22,17 @@ Codex는 사용자가 설치한 CLI의 app-server에 연결하고, Claude는 mai
 
 구조화 AI 응답의 생성 스키마는 모든 속성을 required로 선언하고, 로컬 선택 속성은 nullable로 표현합니다. 제공자 응답에서 선언된 선택 속성의 null만 제거한 뒤 기존 엄격한 파서로 검증합니다. 필수 속성의 null·미등록 키는 계속 거부하며, 저장하는 유저플로우 JSON의 선택 속성 규칙은 바꾸지 않습니다. 이는 [Structured Outputs의 필수 필드 규칙](https://developers.openai.com/api/docs/guides/structured-outputs)을 따릅니다.
 
+## 빈 프로젝트의 기획 세션
+
+아이디어 기획은 문서 근거 검토와 별도 세션으로 처리합니다. 기존 SQLite records에 `planning` 레코드를 저장하고 단계·확정 내용·열린 질문·가정과 요청 ID를 보관합니다. 사용자 메시지는 제공자 연결 전에 저장하며 실패·취소에도 유지합니다. 같은 세션의 대화만 다음 요청에 넣고 긴 대화는 완전한 턴 단위로 선별합니다. 사용자 예산 입력 없이 맥락 크기를 자동 관리하며 전체 기록은 로컬에 남깁니다.
+
+기획 전용 응답 schema는 두 제공자에 공통 적용합니다. 토론에서는 질문과 정리를, 문서화 요청에서는 create 제안을 받습니다. AI 정리는 pendingBrief 후보로만 저장하고 사용자 반영 후 확정하며, 문서 생성은 기존 ProposalService의 검토·수락 경로를 재사용합니다. 같은 세션의 create 제안만 수정·거절 맥락으로 연결합니다.
+
 ## 문서 구조와 사용자 흐름
 
-논리적 문서·섹션 ID와 관계는 보존하고, 화면에는 문서 카드만 투영합니다. 연결된 섹션 행은 원본 ID의 핸들을 사용하고 숨긴 행은 카드 경계로 위임합니다. 확정·미확정 상태를 분리한 연결 묶음은 선택 시 원래 연결로 펼칩니다. 집중 보기는 직접 연결된 문서만 임시 배치하며 이동량을 전체 지도 좌표에 반영합니다.
+문서 구조의 기본 기획 펼치기는 Cytoscape로 문서와 원문 순서의 항목을 펼치고 카드 옆 Markdown 상세·근거 이동을 제공합니다. 동일 본문 묶기와 기획 문서 필터는 원본 ID·관계를 바꾸지 않습니다.
+
+연결 탐색은 React Flow 기반 기존 관계 편집입니다. 논리적 문서·섹션 ID와 관계는 보존하고, 화면에는 문서 카드만 투영합니다. 연결된 섹션 행은 원본 ID의 핸들을 사용하고 숨긴 행은 카드 경계로 위임합니다. 확정·미확정 상태를 분리한 연결 묶음은 선택 시 원래 연결로 펼칩니다. 집중 보기는 직접 연결된 문서만 임시 배치하며 이동량을 전체 지도 좌표에 반영합니다.
 
 배선은 Worker의 장애물 회피 경로를 우선 사용하고 대기·실패 시 곡선을 즉시 표시합니다. `map-view`의 `layoutVersion: 2`는 문서 카드 좌표이며, 기존 3열 배치는 첫 저장 때 `map-view-v1` 레코드에 백업합니다. React Flow 노드 크기·핸들 좌표를 선언적으로 제공하고 정렬 옵션 참조를 고정해 DOM 측정·렌더 타이밍에 따른 표시 차이를 줄였습니다. 674px 창에서 집중 카드의 버튼이 캔버스 안에 있는지도 회귀 검증합니다.
 
@@ -41,10 +49,10 @@ frontend-design 스킬을 활용해 흑연색 사이드바, 흰 문서 영역, �
 ```sh
 npm run build
 npm run screenshots
-npm run test:e2e -- tests/e2e/flow-proposals.spec.ts
+npm run test:e2e -- tests/e2e/flow-proposals.spec.ts tests/e2e/planning.spec.ts tests/e2e/diagram-workspace.spec.ts
 ```
 
-캡처 스크립트는 임시 예제에 섹션 연결과 시연용 유저플로우를 작성하고 문서·지도·집중 보기·Mermaid·유저플로우·키 없는 Claude 설정 화면을 저장합니다. 개인 프로젝트는 열지 않으며 추론 요청을 보내지 않습니다. AI 변경 검토 이미지는 가짜 제공자 E2E의 `test-results/flow-proposals-*/flow-proposal-diff.png`를 `docs/images/user-flow-proposal-diff.png`로 복사합니다. 화면을 직접 확인한 뒤 README의 설명과 함께 갱신합니다.
+캡처 스크립트는 임시 예제에 섹션 연결과 시연용 유저플로우를 작성하고 문서·지도·집중 보기·Mermaid·유저플로우·키 없는 Claude 설정 화면을 저장합니다. 개인 프로젝트는 열지 않으며 추론 요청을 보내지 않습니다. AI 변경 검토 이미지는 가짜 제공자 E2E의 `test-results/flow-proposals-*/flow-proposal-diff.png`를 `docs/images/user-flow-proposal-diff.png`로 복사합니다. 아이디어 기획과 문서 다이어그램 확대 이미지는 각 E2E의 `outputs/idea-to-project.png`, `outputs/diagram-workspace-expanded.png`를 확인해 `docs/images/`에 복사합니다. 화면을 직접 확인한 뒤 README의 설명과 함께 갱신합니다.
 
 ## Git 이력에 관하여
 
@@ -52,4 +60,4 @@ npm run test:e2e -- tests/e2e/flow-proposals.spec.ts
 
 ## 다음 과제
 
-코드 서명·공증, 자동 업데이트, 타 플랫폼 실기기 검증, 앱의 Claude API 실계정 검증 등이 남아 있습니다. 큰 입력의 자동 맥락 압축과 프로젝트 브리핑도 아직 구현하지 않았습니다. 동시 프로젝트 탭과 Gemini는 현재 지원하지 않습니다. 작업의 구체적 완료 기준은 GitHub 이슈에서 관리합니다.
+코드 서명·공증, 자동 업데이트, 타 플랫폼 실기기 검증, 앱의 Claude API 실계정 검증 등이 남아 있습니다. 프로젝트 브리핑, 원문 발췌·분할 분석과 기획 대화의 턴 단위 선별은 구현했습니다. AI 요약으로 과거 대화를 자동 압축하는 기능은 구현하지 않았습니다. 동시 프로젝트 탭과 Gemini는 현재 지원하지 않습니다. 작업의 구체적 완료 기준은 GitHub 이슈에서 관리합니다.
