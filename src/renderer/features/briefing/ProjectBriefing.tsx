@@ -56,7 +56,7 @@ export function ProjectBriefing({
           </h2>
           <button className="briefing-link" onClick={() => onFlows('mermaid')}>
             <span>
-              <strong>문서 속 흐름 {briefing.sourceFlows.length}개</strong>
+              <strong>문서 다이어그램 {briefing.sourceFlows.length}개</strong>
               <small>원문에 있는 Mermaid와 정의 파일</small>
             </span>
             <ArrowUpRight size={16} />
@@ -76,7 +76,7 @@ export function ProjectBriefing({
           ))}
           {!briefing.userFlows.length && (
             <p>
-              저장된 유저플로우가 없습니다. 문서 속 흐름을 먼저 확인하거나 새 흐름을 작성하세요.
+              저장된 유저플로우가 없습니다. 문서 다이어그램을 먼저 확인하거나 새 흐름을 작성하세요.
             </p>
           )}
           <button className="button compact" onClick={() => onFlows('userflow')}>

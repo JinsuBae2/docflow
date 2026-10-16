@@ -61,9 +61,9 @@ test('briefs 24 documents without AI, reviews budgeted original evidence and blo
     await page.getByRole('button', { name: '프로젝트 브리핑', exact: true }).click();
     await page
       .locator('.briefing-card')
-      .getByRole('button', { name: /문서 속 흐름 1개/ })
+      .getByRole('button', { name: /문서 다이어그램 1개/ })
       .click();
-    await expect(page.getByRole('heading', { name: '문서 속 흐름', exact: true })).toBeVisible();
+    await expect(page.getByRole('heading', { name: '문서 다이어그램', exact: true })).toBeVisible();
     await page.getByRole('button', { name: '프로젝트 브리핑', exact: true }).click();
     await page
       .locator('.briefing-card')

@@ -40,7 +40,7 @@ export function ProjectDiagrams(
                 setMode(item);
             }}
           >
-            {item === 'mermaid' ? '문서 속 흐름' : '유저플로우'}
+            {item === 'mermaid' ? '문서 다이어그램' : '유저플로우'}
           </button>
         ))}
       </div>

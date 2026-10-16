@@ -321,7 +321,7 @@ test('renders semantic flows, preserves manual positions, projects collapsed edg
         await readFile(join(workspace.root, '.workspace', 'flows', `${draft.id}.json`), 'utf8'),
       ).nodes,
     ).toHaveLength(8);
-    await page.getByRole('tab', { name: '문서 속 흐름', exact: true }).click();
+    await page.getByRole('tab', { name: '문서 다이어그램', exact: true }).click();
     await expect(page.locator('.diagram-canvas svg')).toBeVisible();
     expect(errors).toEqual([]);
   } finally {

@@ -32,7 +32,7 @@ test('browses local diagram families and definitions, edits a basic flow and pre
       .locator('.view-tabs')
       .getByRole('button', { name: '사용자 흐름', exact: true })
       .click();
-    await expect(page.getByRole('heading', { name: '문서 속 흐름', exact: true })).toBeVisible({
+    await expect(page.getByRole('heading', { name: '문서 다이어그램', exact: true })).toBeVisible({
       timeout: 3000,
     });
     const choose = async (title: string) =>

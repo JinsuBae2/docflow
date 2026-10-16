@@ -1,4 +1,4 @@
-export type FlowKind = 'flowchart' | 'sequence' | 'state' | 'unsupported';
+export type FlowKind = 'flowchart' | 'sequence' | 'state' | 'er' | 'unsupported';
 export interface SimpleFlow {
   direction: 'TD' | 'TB' | 'BT' | 'LR' | 'RL';
   nodes: Array<{ id: string; label: string }>;
@@ -13,6 +13,7 @@ export function flowKind(code: string): FlowKind {
   if (/^(flowchart|graph)\s+(TD|TB|BT|LR|RL)\b/.test(first)) return 'flowchart';
   if (/^sequenceDiagram\b/.test(first)) return 'sequence';
   if (/^stateDiagram(?:-v2)?\b/.test(first)) return 'state';
+  if (/^erDiagram\b/.test(first)) return 'er';
   return 'unsupported';
 }
 export function flowSafetyError(code: string): string | undefined {
@@ -33,7 +34,7 @@ export function flowSafetyError(code: string): string | undefined {
   )
     return '실행 링크·HTML·설정 지시문이 포함되어 미리보기를 차단했습니다. 원문은 보존됩니다.';
   if (flowKind(code) === 'unsupported')
-    return '이 형식은 원문 보기로 지원합니다. 흐름도·시퀀스·상태 다이어그램을 미리 볼 수 있습니다.';
+    return '이 형식은 원문 보기로 지원합니다. 흐름도·시퀀스·상태·ERD를 미리 볼 수 있습니다.';
 }
 const validId = (id: string) => /^[A-Za-z][A-Za-z0-9_]{0,60}$/.test(id);
 const validLabel = (label: string) =>

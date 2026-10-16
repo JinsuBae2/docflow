@@ -22,7 +22,13 @@ mermaid.initialize({
   },
   flowchart: { htmlLabels: false, curve: 'linear', nodeSpacing: 42, rankSpacing: 64, padding: 18 },
 });
-const kinds = { flowchart: '흐름도', sequence: '시퀀스', state: '상태', unsupported: '원문 보기' };
+const kinds = {
+  flowchart: '흐름도',
+  sequence: '시퀀스',
+  state: '상태',
+  er: 'ERD',
+  unsupported: '원문 보기',
+};
 export function Diagram({
   flows,
   issues,
@@ -104,10 +110,10 @@ export function Diagram({
     <div className="diagram-view">
       <div className="view-heading">
         <div>
-          <h1>문서 속 흐름</h1>
+          <h1>문서 다이어그램</h1>
           <span>
-            문서 간 문서 구조와 별도로 사용자·시스템 흐름을 탐색합니다. 기존 흐름은 AI 없이
-            표시합니다.
+            문서 안의 흐름도·시퀀스·상태·ERD를 탐색합니다. 사용자 시나리오는 유저플로우에서
+            설계하세요.
           </span>
         </div>
         <button className="button compact" disabled={!!editing} onClick={onGenerate}>
@@ -116,7 +122,7 @@ export function Diagram({
         </button>
       </div>
       <div className="project-flows-body">
-        <aside className="flow-inventory" aria-label="문서 속 흐름 목록">
+        <aside className="flow-inventory" aria-label="문서 다이어그램 목록">
           <input
             aria-label="흐름 검색"
             placeholder="문서·섹션·형식 검색"
@@ -271,7 +277,7 @@ export function Diagram({
           ) : (
             <div className="empty-state">
               <GitBranch size={32} />
-              <h3>{search ? '검색 결과가 없습니다' : '아직 문서 속 흐름이 없습니다'}</h3>
+              <h3>{search ? '검색 결과가 없습니다' : '아직 문서 다이어그램이 없습니다'}</h3>
               <p>문서의 Mermaid 코드 또는 프로젝트 내부 정의 파일 링크를 추가하세요.</p>
               <button className="button" onClick={onGenerate}>
                 사용자 흐름 생성

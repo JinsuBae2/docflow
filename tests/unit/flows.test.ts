@@ -6,6 +6,15 @@ import {
   serializeSimpleFlow,
 } from '../../src/shared/flows';
 
+it('previews ER diagrams without treating them as editable simple flows or allowing unsafe content', () => {
+  const code = 'erDiagram\nUSER ||--o{ EVENT : reviews\nUSER {\nstring id PK\n}';
+  expect(flowKind(code)).toBe('er');
+  expect(flowSafetyError(code)).toBeUndefined();
+  expect(parseSimpleFlow(code)).toBeNull();
+  for (const suffix of ['\nclick USER handler', '\n%%{init: {}}%%', '\nUSER[<script>bad</script>]'])
+    expect(flowSafetyError(code + suffix)).toBeTruthy();
+});
+
 it('recognizes supported diagram families and blocks executable or configuration content', () => {
   expect(
     ['flowchart TD\nA-->B', 'sequenceDiagram\nA->>B: Hello', 'stateDiagram-v2\n[*] --> Ready'].map(
