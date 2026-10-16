@@ -118,7 +118,7 @@ test('briefs 24 documents without AI, reviews budgeted original evidence and blo
   }
 });
 
-test('requires an explicit idea-only selection for a blank project', async () => {
+test('starts a planning conversation directly from a blank project', async () => {
   const data = await mkdtemp(join(tmpdir(), 'docflow-empty-understanding-'));
   const root = join(data, 'project');
   const store = await ProjectStore.open(root);
@@ -140,16 +140,10 @@ test('requires an explicit idea-only selection for a blank project', async () =>
     await page.getByRole('textbox', { name: 'AI에게 요청' }).fill('새로운 기획');
     await page.getByRole('button', { name: '요청 보내기', exact: true }).click();
     await expect(
-      page.getByRole('alert').filter({ hasText: '전송할 원문 근거가 없습니다.' }),
+      page.getByText('어떤 사용자의 어떤 문제를 해결하고 싶나요?', { exact: true }),
     ).toBeVisible();
-    await expect(
-      page.getByRole('button', { name: '검토한 근거로 요청', exact: true }),
-    ).toBeDisabled();
-    expect((await page.evaluate(() => window.workspace.current()))!.messages).toHaveLength(0);
-    await page.getByRole('dialog').getByRole('button', { name: '확인', exact: true }).click();
-    await page.getByLabel('문서 없이 아이디어 상담', { exact: true }).check();
-    await page.getByRole('button', { name: '요청 보내기', exact: true }).click();
-    await expect(page.getByText('검토했습니다.', { exact: true })).toBeVisible();
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: '아이디어에서 프로젝트로' })).toBeVisible();
     expect((await page.evaluate(() => window.workspace.current()))!.messages).toHaveLength(2);
   } finally {
     await app.evaluate(({ BrowserWindow }) =>

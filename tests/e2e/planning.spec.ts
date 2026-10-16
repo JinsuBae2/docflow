@@ -28,6 +28,9 @@ test('starts a blank software project, carries conversation, restores notes and 
     await expect(
       page.getByRole('button', { name: '브레인스토밍 시작', exact: true }),
     ).toBeVisible();
+    await page.getByRole('button', { name: '바로 계획 세우기', exact: true }).click();
+    await expect(page.getByRole('combobox', { name: '기획 단계' })).toHaveValue('scope');
+    await page.getByRole('button', { name: '프로젝트 브리핑', exact: true }).click();
     await page.getByRole('button', { name: '브레인스토밍 시작', exact: true }).click();
     await expect(page.getByRole('heading', { name: '아이디어에서 프로젝트로' })).toBeVisible();
     await page.getByRole('textbox', { name: 'AI에게 요청' }).fill('운영자를 위한 경보 검토 도구');
@@ -106,7 +109,9 @@ test('starts a blank software project, carries conversation, restores notes and 
     await expect(page.getByRole('textbox', { name: '확정 내용', exact: true })).toHaveValue('');
     await expect(page.locator('.chat-messages')).not.toContainText('운영자를 위한 경보 검토 도구');
     const sessions = (await page.evaluate(() => window.workspace.current()))!.planningSessions!;
-    await page.getByRole('combobox', { name: '기획 세션' }).selectOption(sessions[0].id);
+    await page
+      .getByRole('combobox', { name: '기획 세션' })
+      .selectOption(sessions.find((session) => session.mode === 'brainstorm')!.id);
     await page.getByRole('button', { name: '대화', exact: true }).click();
     await expect(page.locator('.chat-messages')).toContainText('운영자를 위한 경보 검토 도구');
     await page
@@ -155,6 +160,7 @@ test('keeps long and failed conversations, protects unsaved notes and fits narro
       DOCFLOW_DATA_DIR: data,
       DOCFLOW_TEST_NODE: process.execPath,
       DOCFLOW_TEST_FIXTURE: resolve('tests/fixtures/fake-codex.cjs'),
+      DOCFLOW_TEST_DELAY_MS: '500',
     },
   });
   try {
@@ -198,6 +204,15 @@ test('keeps long and failed conversations, protects unsaved notes and fits narro
       page.getByText('이전 설명을 이어갑니다: 사용량 실패', { exact: true }),
     ).toBeVisible();
     expect((await page.evaluate(() => window.workspace.current()))!.messages).toHaveLength(4);
+    await page.getByRole('textbox', { name: 'AI에게 요청' }).fill('취소할 설명도 보존');
+    await page.getByRole('button', { name: '요청 보내기', exact: true }).click();
+    await page.getByRole('button', { name: '요청 취소', exact: true }).click();
+    await expect(
+      page.getByText('요청을 취소했습니다. 문서는 변경하지 않았습니다.', { exact: true }),
+    ).toBeVisible();
+    const cancelled = (await page.evaluate(() => window.workspace.current()))!;
+    expect(cancelled.messages).toHaveLength(5);
+    expect(cancelled.messages.at(-1)?.text).toBe('취소할 설명도 보존');
   } finally {
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows().forEach((w) => w.destroy()),
