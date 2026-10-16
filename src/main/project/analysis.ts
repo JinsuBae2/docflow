@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { setImmediate as yieldToEventLoop } from 'node:timers/promises';
 import type {
   AiEvent,
   AiProviderId,
@@ -314,6 +315,8 @@ export class AnalysisService {
     try {
       this.validate(record);
       for (const batch of record.batches) {
+        // Cached batches have no provider I/O to let IPC, progress and cancellation run.
+        await yieldToEventLoop();
         if (signal.aborted) break;
         this.validate(record);
         if (batch.completed) continue;

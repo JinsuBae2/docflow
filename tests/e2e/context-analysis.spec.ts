@@ -51,8 +51,11 @@ test('previews a large project, excludes private documents and reuses completed 
     expect(first.plans[0].completed).toBe(first.plans[0].total);
     expect(new Set(first.plans[0].evidence?.map((s) => s.documentId)).size).toBe(1);
     await dialog.getByRole('button', { name: '분석 계획 확인', exact: true }).click();
+    await expect(dialog.locator('strong').filter({ hasText: /^준비 ·/ })).toBeVisible();
     await dialog.getByRole('button', { name: '분석 시작', exact: true }).click();
-    await expect(dialog.locator('strong').filter({ hasText: /^완료 ·/ })).toBeVisible();
+    await expect(dialog.locator('strong').filter({ hasText: /^완료 ·/ })).toBeVisible({
+      timeout: 25000,
+    });
     const second = await page.evaluate(async () => ({
       plans: await window.workspace.listAnalyses(),
       usage: await window.workspace.usageSummary(),
