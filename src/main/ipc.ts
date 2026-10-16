@@ -36,6 +36,8 @@ import type {
 } from '../shared/contracts';
 import { normalizeCodexUsage } from './ai/usage';
 import { documentTypeSchema } from '../shared/proposal-schema';
+import { planningModeSchema, planningPatchSchema } from '../shared/planning';
+import { PlanningSessionStore } from './project/planning';
 const str = z
   .string()
   .max(2_000_000)
@@ -56,6 +58,8 @@ const contextSchema = z
   })
   .strict();
 const schemas: Record<string, z.ZodType> = {
+  startPlanning: z.tuple([planningModeSchema, z.string().max(4000)]),
+  savePlanning: z.tuple([id, id, planningPatchSchema, z.string().max(4000)]),
   saveUserFlow: z.tuple([userFlowSchema, id.nullable(), z.string().max(4000)]),
   importUserFlow: z.tuple([id, id, z.string().max(4000)]),
   projectMap: z.tuple([]),
@@ -99,7 +103,8 @@ const schemas: Record<string, z.ZodType> = {
     z
       .object({
         selectedId: z.string().max(250),
-        view: z.enum(['document', 'graph', 'diagram']),
+        view: z.enum(['document', 'graph', 'diagram', 'planning']),
+        planningSessionId: id.optional(),
         prompt: z.string().max(10000),
         collapsed: z.boolean(),
       })
@@ -514,6 +519,16 @@ export function registerWorkspace(window: BrowserWindow) {
       }
       case 'previewContext':
         return buildContext(args[0], requireStore(), args[1]);
+      case 'startPlanning':
+      case 'savePlanning': {
+        const current = requireStore();
+        if (current.root !== args[method === 'startPlanning' ? 1 : 3])
+          throw new Error('프로젝트가 변경되었습니다.');
+        const planning = new PlanningSessionStore(current);
+        if (method === 'startPlanning') planning.start(args[0]);
+        else planning.save(args[0], args[1], args[2]);
+        return current.workspace();
+      }
       case 'projectMap':
         return new ProjectMapStore(requireStore()).read();
       case 'saveUserFlow': {

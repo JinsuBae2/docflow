@@ -89,7 +89,7 @@ export default function App() {
   const [selectedId, setSelectedId] = useState('');
   const [sectionId, setSectionId] = useState('');
   const [userFlowFocus, setUserFlowFocus] = useState<{ flowId: string; nodeId: string }>();
-  const [view, setView] = useState<'document' | 'graph' | 'diagram'>('document');
+  const [view, setView] = useState<'document' | 'graph' | 'diagram' | 'planning'>('document');
   const [briefing, setBriefing] = useState(false);
   const [diagramMode, setDiagramMode] = useState<'mermaid' | 'userflow'>();
   const [ideaMode, setIdeaMode] = useState(false);

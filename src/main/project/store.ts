@@ -27,6 +27,7 @@ import { discoverDocuments, checkDocumentPath } from './discovery';
 import { indexDocumentLinks } from './links';
 import { indexProjectFlows } from './flows';
 import { UserFlowStore } from './user-flows';
+import { PlanningSessionStore } from './planning';
 import type { UserFlow } from '../../shared/user-flow';
 import { parseSimpleFlow } from '../../shared/flows';
 import { ensureProjectDirectory, safePath, readDocumentFile, fileIdentity } from './files';
@@ -459,6 +460,7 @@ export class ProjectStore {
       .map((p) => p.resultDocumentId!);
     return {
       root: this.root,
+      planningSessions: new PlanningSessionStore(this).list(),
       mapView: this.get<MapView>('map-view', this.all<Project>('project')[0].id),
       project: this.all<Project>('project')[0],
       documents,
