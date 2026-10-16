@@ -328,7 +328,7 @@ export interface ProjectFlow {
   sourceKind: 'markdown' | 'definition';
   sourceRevision: Revision;
   language: string;
-  kind: 'flowchart' | 'sequence' | 'state' | 'unsupported';
+  kind: 'flowchart' | 'sequence' | 'state' | 'er' | 'unsupported';
   code: string;
   editable: boolean;
   editReason?: string;

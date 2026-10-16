@@ -22,7 +22,13 @@ mermaid.initialize({
   },
   flowchart: { htmlLabels: false, curve: 'linear', nodeSpacing: 42, rankSpacing: 64, padding: 18 },
 });
-const kinds = { flowchart: '흐름도', sequence: '시퀀스', state: '상태', unsupported: '원문 보기' };
+const kinds = {
+  flowchart: '흐름도',
+  sequence: '시퀀스',
+  state: '상태',
+  er: 'ERD',
+  unsupported: '원문 보기',
+};
 export function Diagram({
   flows,
   issues,
@@ -49,6 +55,29 @@ export function Diagram({
   const [svg, setSvg] = useState('');
   const [error, setError] = useState('');
   const [zoom, setZoom] = useState(1);
+  const [size, setSize] = useState({ width: 0, height: 0 });
+  const canvas = useRef<HTMLDivElement>(null);
+  const scroll = useRef<HTMLDivElement>(null);
+  const fitToView = () => {
+    const bounds = canvas.current?.querySelector('svg')?.viewBox.baseVal;
+    const area = scroll.current;
+    if (!bounds?.width || !bounds.height || !area) return;
+    setSize({ width: bounds.width, height: bounds.height });
+    setZoom(
+      Math.max(
+        0.05,
+        Math.min(
+          1,
+          (area.clientWidth - 48) / bounds.width,
+          (area.clientHeight - 48) / bounds.height,
+        ),
+      ),
+    );
+    area.scrollTo(0, 0);
+  };
+  useEffect(() => {
+    if (svg) fitToView();
+  }, [svg]);
   const [editing, setEditing] = useState<ProjectFlow | null>(null);
   const [sourceOpen, setSourceOpen] = useState(false);
   const revisions = useRef(new Map<string, string>());
@@ -104,10 +133,10 @@ export function Diagram({
     <div className="diagram-view">
       <div className="view-heading">
         <div>
-          <h1>문서 속 흐름</h1>
+          <h1>문서 다이어그램</h1>
           <span>
-            문서 간 문서 구조와 별도로 사용자·시스템 흐름을 탐색합니다. 기존 흐름은 AI 없이
-            표시합니다.
+            문서 안의 흐름도·시퀀스·상태·ERD를 탐색합니다. 사용자 시나리오는 유저플로우에서
+            설계하세요.
           </span>
         </div>
         <button className="button compact" disabled={!!editing} onClick={onGenerate}>
@@ -116,7 +145,7 @@ export function Diagram({
         </button>
       </div>
       <div className="project-flows-body">
-        <aside className="flow-inventory" aria-label="문서 속 흐름 목록">
+        <aside className="flow-inventory" aria-label="문서 다이어그램 목록">
           <input
             aria-label="흐름 검색"
             placeholder="문서·섹션·형식 검색"
@@ -196,18 +225,18 @@ export function Diagram({
                   <button
                     className="icon-button"
                     title="축소"
-                    onClick={() => setZoom((zoom) => Math.max(0.5, zoom - 0.2))}
+                    onClick={() => setZoom((zoom) => Math.max(0.05, zoom / 1.2))}
                   >
                     <ZoomOut size={16} />
                   </button>
                   <button
                     className="icon-button"
                     title="확대"
-                    onClick={() => setZoom((zoom) => Math.min(2, zoom + 0.2))}
+                    onClick={() => setZoom((zoom) => Math.min(4, zoom * 1.2))}
                   >
                     <ZoomIn size={16} />
                   </button>
-                  <button className="icon-button" title="배율 초기화" onClick={() => setZoom(1)}>
+                  <button className="icon-button" title="화면에 맞추기" onClick={fitToView}>
                     <RotateCcw size={14} />
                   </button>
                 </div>
@@ -229,13 +258,13 @@ export function Diagram({
                   <p>{error}</p>
                 </div>
               ) : (
-                <div className="diagram-scroll">
+                <div ref={scroll} className="diagram-scroll">
                   <div
+                    ref={canvas}
                     className="diagram-canvas"
                     style={{
-                      width: `${zoom * 100}%`,
-                      height: `${zoom * 100}%`,
-                      minWidth: zoom > 1 ? `${zoom * 100}%` : undefined,
+                      width: size.width * zoom,
+                      height: size.height * zoom,
                     }}
                     dangerouslySetInnerHTML={{ __html: svg }}
                   />
@@ -271,7 +300,7 @@ export function Diagram({
           ) : (
             <div className="empty-state">
               <GitBranch size={32} />
-              <h3>{search ? '검색 결과가 없습니다' : '아직 문서 속 흐름이 없습니다'}</h3>
+              <h3>{search ? '검색 결과가 없습니다' : '아직 문서 다이어그램이 없습니다'}</h3>
               <p>문서의 Mermaid 코드 또는 프로젝트 내부 정의 파일 링크를 추가하세요.</p>
               <button className="button" onClick={onGenerate}>
                 사용자 흐름 생성

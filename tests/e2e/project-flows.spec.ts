@@ -28,15 +28,20 @@ test('browses local diagram families and definitions, edits a basic flow and pre
   });
   try {
     const page = await app.firstWindow();
+    await page.setViewportSize({ width: 800, height: 700 });
     await page
       .locator('.view-tabs')
       .getByRole('button', { name: '사용자 흐름', exact: true })
       .click();
-    await expect(page.getByRole('heading', { name: '문서 속 흐름', exact: true })).toBeVisible({
+    await expect(page.getByRole('heading', { name: '문서 다이어그램', exact: true })).toBeVisible({
       timeout: 3000,
     });
-    const choose = async (title: string) =>
-      page.getByRole('button', { name: new RegExp('^흐름 선택: ' + title + ' ·') }).click();
+    const choose = async (title: string) => {
+      const show = page.getByRole('button', { name: '목록 펼치기', exact: true });
+      if (await show.isVisible()) await show.click();
+      await page.getByRole('button', { name: new RegExp('^흐름 선택: ' + title + ' ·') }).click();
+      await page.getByRole('button', { name: '목록 접기', exact: true }).click();
+    };
     for (const title of ['로그인', '시퀀스', '상태', 'state.mmd']) {
       await choose(title);
       await expect(page.locator('.diagram-canvas svg')).toBeVisible();
@@ -45,6 +50,7 @@ test('browses local diagram families and definitions, edits a basic flow and pre
       );
     }
     await expect(page.getByRole('button', { name: '기본 흐름 편집', exact: true })).toBeDisabled();
+    await page.setViewportSize({ width: 1600, height: 1050 });
     await choose('차단 흐름');
     await expect(page.getByText(/실행 링크·HTML·설정 지시문/)).toBeVisible();
     await expect(page.locator('.diagram-canvas svg')).toHaveCount(0);

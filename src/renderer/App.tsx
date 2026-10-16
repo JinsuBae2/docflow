@@ -386,6 +386,23 @@ export default function App() {
     setAssistant(true);
     setTimeout(() => promptRef.current?.focus(), 50);
   };
+  const reviewDiagramRequest = async (instruction: string, flowId?: string | null) => {
+    if (dirty || running)
+      throw new Error('작성 중인 내용을 저장하고 AI 요청을 마친 뒤 진행해 주세요.');
+    const preview = await window.workspace.previewContext({
+      instruction,
+      mode: 'documents',
+      selectedIds: [...new Set([...(doc ? [doc.id] : []), ...included])],
+      excludedIds: excluded,
+      ...(flowId !== undefined ? { flowId } : {}),
+    });
+    setIdeaMode(false);
+    setFlowRequestId(flowId);
+    setPendingContextRequest({});
+    preparePrompt(instruction);
+    setContext(preview);
+    setModal('context');
+  };
   useEffect(() => {
     if (!window.workspace) {
       setError('Docflow 데스크톱 앱에서 열어 주세요.');
@@ -1087,25 +1104,14 @@ export default function App() {
               workspace={workspace}
               initialMode={diagramMode}
               onRequestFlow={(flowId) =>
-                void act(async () => {
-                  if (dirty || running)
-                    throw new Error('작성 중인 내용을 저장하고 AI 요청을 마친 뒤 진행해 주세요.');
-                  const instruction = flowId
-                    ? '문서 근거를 바탕으로 이 유저플로우를 보완해줘. 기존 ID와 수동 배치를 유지해줘.'
-                    : '선택한 문서에서 사용자 화면 이동·행동·조건 분기·시스템 처리를 유저플로우로 제안해줘.';
-                  const preview = await window.workspace.previewContext({
-                    ...contextInput(instruction),
+                void act(() =>
+                  reviewDiagramRequest(
+                    flowId
+                      ? '문서 근거를 바탕으로 이 유저플로우를 보완해줘. 기존 ID와 수동 배치를 유지해줘.'
+                      : '선택한 문서에서 사용자 화면 이동·행동·조건 분기·시스템 처리를 유저플로우로 제안해줘.',
                     flowId,
-                    mode: 'documents',
-                    selectedIds: [...new Set([...(doc ? [doc.id] : []), ...included])],
-                  });
-                  setIdeaMode(false);
-                  setPendingContextRequest({});
-                  setFlowRequestId(flowId);
-                  preparePrompt(instruction);
-                  setContext(preview);
-                  setModal('context');
-                })
+                  ),
+                )
               }
               userFlowFocus={
                 userFlowFocus &&
@@ -1161,8 +1167,10 @@ export default function App() {
                 }
               }}
               onGenerate={() =>
-                preparePrompt(
-                  '현재 프로젝트와 관련 문서의 맥락을 바탕으로 사용자 흐름도를 만들어줘. Mermaid 다이어그램을 포함한 새 flow 문서를 diagram 제안으로 작성해줘.',
+                void act(() =>
+                  reviewDiagramRequest(
+                    '현재 프로젝트와 관련 문서의 맥락을 바탕으로 사용자 흐름도를 만들어줘. Mermaid 다이어그램을 포함한 새 flow 문서를 diagram 제안으로 작성해줘.',
+                  ),
                 )
               }
             />
@@ -1412,8 +1420,10 @@ export default function App() {
                       <button
                         disabled={!workspace}
                         onClick={() =>
-                          preparePrompt(
-                            '관련 문서를 바탕으로 사용자 흐름을 다이어그램 문서로 만들어줘.',
+                          void act(() =>
+                            reviewDiagramRequest(
+                              '관련 문서를 바탕으로 사용자 흐름을 다이어그램 문서로 만들어줘.',
+                            ),
                           )
                         }
                       >

@@ -81,7 +81,11 @@ export function indexProjectFlows(root: string, documents: Document[]) {
           ? undefined
           : sourceKind === 'definition'
             ? '연결된 정의 파일은 읽기 전용입니다.'
-            : '복잡한 문법·중첩 블록은 원문을 보존하는 읽기 보기입니다.',
+            : language !== 'mermaid' || flowKind(code) === 'unsupported'
+              ? '이 형식은 원문 보기만 지원합니다.'
+              : flowKind(code) !== 'flowchart'
+                ? '이 다이어그램은 미리보기만 지원합니다. 수정은 원문 문서에서 해 주세요.'
+                : '이 흐름도는 원문 문법을 보존하기 위해 읽기 전용으로 표시합니다.',
         safetyError,
         contentStart,
         contentEnd,
