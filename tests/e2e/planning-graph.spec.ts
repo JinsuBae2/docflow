@@ -41,6 +41,13 @@ test('expands canvas document cards, keeps coordinates, paginates and shows adja
     });
     await expect(document).toBeVisible();
     await expect(page.locator('.planning-node-hit[data-kind="document"]')).toHaveCount(2);
+    // ResizeObserver sets the initial camera after the first rendered frame.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
     const initial = await document.boundingBox();
     await document.click();
     await expect(page.locator('.planning-node-hit[data-kind="item"]')).toHaveCount(8);
@@ -106,6 +113,13 @@ test('keeps 24 planning documents readable and preserves their stored relationsh
     await page.getByRole('button', { name: '문서 구조', exact: true }).click();
     await expect(page.locator('.planning-node-hit[data-kind="document"]')).toHaveCount(24);
     const first = page.getByRole('button', { name: '문서 펼치기: 1. 기능', exact: true });
+    // ResizeObserver sets the initial camera after the first rendered frame.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    );
     const position = await first.boundingBox();
     await first.click();
     await expect(page.locator('.planning-node-hit[data-kind="item"]')).toHaveCount(2);
