@@ -707,13 +707,14 @@ export function registerWorkspace(window: BrowserWindow) {
             );
           if (snapshot.planningContext) {
             s.transaction(() => {
-              s.put('message', {
-                id: randomUUID(),
-                role: 'user',
-                text: input.instruction,
-                requestId: snapshot.requestId,
-                createdAt: new Date().toISOString(),
-              });
+              if (!feedback)
+                s.put('message', {
+                  id: randomUUID(),
+                  role: 'user',
+                  text: input.instruction,
+                  requestId: snapshot.requestId,
+                  createdAt: new Date().toISOString(),
+                });
               new PlanningSessionStore(s).attachRequest(
                 snapshot.planningContext!.sessionId,
                 snapshot.requestId,
@@ -793,15 +794,19 @@ export function registerWorkspace(window: BrowserWindow) {
                       aiEvent.response.proposals.length)
                   )
                     throw new Error('기획 대화에는 요청한 새 문서 초안만 제안할 수 있습니다.');
-                  if (aiEvent.response.planningSuggestion)
-                    planning.suggest(
-                      current.id,
-                      current.revision,
-                      requestId,
-                      aiEvent.response.planningSuggestion,
-                    );
                 }
-                await new ProposalService(s).register(snapshot.id, aiEvent.response, replacesId);
+                await new ProposalService(s).register(
+                  snapshot.id,
+                  { message: aiEvent.response.message, proposals: aiEvent.response.proposals },
+                  replacesId,
+                );
+                if (snapshot.planningContext && aiEvent.response.planningSuggestion)
+                  new PlanningSessionStore(s).suggest(
+                    snapshot.planningContext.sessionId,
+                    snapshot.planningContext.revision,
+                    requestId,
+                    aiEvent.response.planningSuggestion,
+                  );
                 s.put('message', {
                   id: randomUUID(),
                   role: 'assistant',

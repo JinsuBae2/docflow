@@ -1,3 +1,6 @@
+import { PlanningWorkspace } from './features/planning/PlanningWorkspace';
+import { PlanningContext } from './features/planning/PlanningContext';
+import { isPlanningStart, type PlanningMode } from '../shared/planning';
 import { ProjectBriefing } from './features/briefing/ProjectBriefing';
 import { ContextSelection } from './features/context/ContextSelection';
 import { compareDocuments, displayDocumentType } from '../shared/document-presentation';
@@ -91,6 +94,7 @@ export default function App() {
   const [userFlowFocus, setUserFlowFocus] = useState<{ flowId: string; nodeId: string }>();
   const [view, setView] = useState<'document' | 'graph' | 'diagram' | 'planning'>('document');
   const [briefing, setBriefing] = useState(false);
+  const [planningId, setPlanningId] = useState('');
   const [diagramMode, setDiagramMode] = useState<'mermaid' | 'userflow'>();
   const [ideaMode, setIdeaMode] = useState(false);
   const [pendingContextRequest, setPendingContextRequest] = useState<{ replacesId?: string }>();
@@ -134,6 +138,23 @@ export default function App() {
   const docs = workspace?.documents || [];
   const doc = docs.find((d) => d.id === selectedId) || docs[0];
   const section = doc?.sections.find((s) => s.id === sectionId);
+  const activePlanning =
+    view === 'planning'
+      ? workspace?.planningSessions?.find((session) => session.id === planningId)
+      : undefined;
+  const visibleMessages = activePlanning
+    ? workspace!.messages.filter((message) => activePlanning.requestIds.includes(message.requestId))
+    : workspace?.messages || [];
+  const assistantWorkspace =
+    workspace && activePlanning
+      ? {
+          ...workspace,
+          proposals: workspace.proposals.filter((proposal) =>
+            activePlanning.requestIds.includes(proposal.requestId),
+          ),
+        }
+      : workspace;
+
   const pending =
     workspace?.proposals.filter((p) => p.status === 'pending' || p.status === 'stale').length || 0;
   const [flowRequestId, setFlowRequestId] = useState<string | null | undefined>();
@@ -150,6 +171,7 @@ export default function App() {
     if ((next?.root || '') !== activeRootRef.current) {
       activeRootRef.current = next?.root || '';
       setSelectedId(next?.session?.selectedId || '');
+      setPlanningId(next?.session?.planningSessionId || '');
       setView(next?.session?.view || 'document');
       setBriefing(!!next && !next.session);
       setIdeaMode(false);
@@ -176,6 +198,7 @@ export default function App() {
     selected?: string,
     discover = false,
   ) => {
+    if (view === 'planning' && !mayLeave()) return;
     if (flowEditing) throw new Error('흐름 편집을 저장하거나 취소한 뒤 프로젝트를 바꿔 주세요.');
     await writes.current;
     const next = await open();
@@ -279,17 +302,42 @@ export default function App() {
       else if (link.status === 'external') setExternalLink({ link, root: workspace.root });
       else setError(link.reason || '링크를 열 수 없습니다.');
     });
-  const contextInput = (instruction = prompt): ContextInput => ({
-    ...(flowRequestId !== undefined ? { flowId: flowRequestId } : {}),
-    mode: ideaMode && flowRequestId === undefined ? 'idea' : 'documents',
-    instruction: instruction.trim() || '프로젝트 맥락 확인',
-    selectedIds:
-      ideaMode && flowRequestId === undefined
-        ? []
-        : [...new Set([...(doc ? [doc.id] : []), ...included])],
-    excludedIds: excluded,
-  });
-  const request = async (instruction = prompt, replacesId?: string, reviewedId?: string) => {
+  const contextInput = (
+    instruction = prompt,
+    planningAction: 'discuss' | 'draft' = 'discuss',
+    planningSession = activePlanning,
+  ): ContextInput =>
+    planningSession
+      ? {
+          mode: 'idea',
+          instruction: instruction.trim() || '기획 맥락 확인',
+          selectedIds: [],
+          excludedIds: [],
+          planningSessionId: planningSession.id,
+          planningAction,
+        }
+      : {
+          ...(flowRequestId !== undefined ? { flowId: flowRequestId } : {}),
+          mode: ideaMode && flowRequestId === undefined ? 'idea' : 'documents',
+          instruction: instruction.trim() || '프로젝트 맥락 확인',
+          selectedIds:
+            ideaMode && flowRequestId === undefined
+              ? []
+              : [...new Set([...(doc ? [doc.id] : []), ...included])],
+          excludedIds: excluded,
+        };
+  const proposalPlanning = (id?: string) => {
+    const proposal = workspace?.proposals.find((item) => item.id === id);
+    return workspace?.planningSessions?.find(
+      (session) => proposal && session.requestIds.includes(proposal.requestId),
+    );
+  };
+  const request = async (
+    instruction = prompt,
+    replacesId?: string,
+    reviewedId?: string,
+    planningAction: 'discuss' | 'draft' = 'discuss',
+  ) => {
     if (!instruction.trim() || running) return;
     if (dirty) {
       setError('작성 중인 문서를 저장한 뒤 AI에 요청해 주세요.');
@@ -302,9 +350,41 @@ export default function App() {
     setPanelTab('chat');
     setAssistant(true);
     try {
-      const input = contextInput(
-        section ? instruction + '\n현재 집중 섹션: ' + section.title : instruction,
+      const owner = replacesId ? proposalPlanning(replacesId) : activePlanning;
+      let input = contextInput(
+        !owner && section ? instruction + '\n현재 집중 섹션: ' + section.title : instruction,
+        replacesId && owner ? 'draft' : planningAction,
+        owner,
       );
+      if (owner) {
+        setPlanningId(owner.id);
+        setView('planning');
+        setBriefing(false);
+      }
+      if (
+        workspace &&
+        !activePlanning &&
+        flowRequestId === undefined &&
+        !replacesId &&
+        isPlanningStart(docs) &&
+        !pendingContextRequest
+      ) {
+        const next = await window.workspace.startPlanning('brainstorm', workspace.root);
+        const session = next.planningSessions!.at(-1)!;
+        update(next);
+        setPlanningId(session.id);
+        setView('planning');
+        setBriefing(false);
+        setIdeaMode(true);
+        input = {
+          mode: 'idea',
+          instruction,
+          selectedIds: [],
+          excludedIds: [],
+          planningSessionId: session.id,
+          planningAction,
+        };
+      }
       const preview = reviewedId
         ? context
         : await window.workspace.previewContext(input, replacesId);
@@ -331,6 +411,7 @@ export default function App() {
     } catch (e) {
       setError((e as Error).message);
       setRunning(false);
+      update(await window.workspace.current());
     }
   };
   const rejection = async (
@@ -349,7 +430,13 @@ export default function App() {
     setRunning(true);
     feedbackRequest.current = true;
     try {
-      const input = contextInput('거절 이유 검토');
+      const owner = proposalPlanning(proposalId);
+      const input = contextInput('거절 이유 검토', 'discuss', owner);
+      if (owner) {
+        setPlanningId(owner.id);
+        setView('planning');
+        setBriefing(false);
+      }
       const requestId = retry
         ? await window.workspace.retryRejection(feedbackId, input, workspace.root)
         : await window.workspace.sendRejection(
@@ -386,6 +473,34 @@ export default function App() {
     setAssistant(true);
     setTimeout(() => promptRef.current?.focus(), 50);
   };
+  const resumePlanning = (id: string) => {
+    if (!mayLeave() || (prompt.trim() && !confirm('작성 중인 요청을 버리고 기획으로 이동할까요?')))
+      return;
+    setPlanningId(id);
+    setView('planning');
+    setBriefing(false);
+    setDirty(false);
+    setFlowRequestId(undefined);
+    setPrompt('');
+    setAssistant(true);
+    setPanelTab('chat');
+  };
+  const startPlanning = (mode: PlanningMode) =>
+    void act(async () => {
+      if (!workspace || running || !mayLeave()) return;
+      if (prompt.trim() && !confirm('작성 중인 요청을 버리고 새 기획을 시작할까요?')) return;
+      const next = await window.workspace.startPlanning(mode, workspace.root);
+      update(next);
+      setPlanningId(next.planningSessions!.at(-1)!.id);
+      setView('planning');
+      setBriefing(false);
+      setDirty(false);
+      setFlowRequestId(undefined);
+      setPrompt('');
+      setAssistant(true);
+      setPanelTab('chat');
+      setTimeout(() => promptRef.current?.focus(), 50);
+    });
   const reviewDiagramRequest = async (instruction: string, flowId?: string | null) => {
     if (dirty || running)
       throw new Error('작성 중인 내용을 저장하고 AI 요청을 마친 뒤 진행해 주세요.');
@@ -455,9 +570,12 @@ export default function App() {
     if (!workspace) return;
     const root = workspace.root;
     queueWrite(() =>
-      window.workspace.saveSession({ selectedId, view, prompt, collapsed: false }, root),
+      window.workspace.saveSession(
+        { selectedId, view, prompt, collapsed: false, planningSessionId: planningId || undefined },
+        root,
+      ),
     );
-  }, [workspace?.root, selectedId, view, prompt]);
+  }, [workspace?.root, selectedId, view, prompt, planningId]);
   useEffect(() => {
     chatEnd.current?.scrollIntoView({ behavior: 'smooth' });
   }, [workspace?.messages.length, progress]);
@@ -953,7 +1071,9 @@ export default function App() {
                       ? doc?.title || '문서'
                       : view === 'graph'
                         ? '문서 구조'
-                        : '사용자 흐름'}
+                        : view === 'planning'
+                          ? '아이디어 기획'
+                          : '사용자 흐름'}
                 </span>
               </span>
             </div>
@@ -996,6 +1116,19 @@ export default function App() {
                 <span>사용자 흐름</span>
               </button>
             </div>
+            {workspace && (
+              <button
+                className="button compact planning-entry"
+                disabled={running || busy}
+                onClick={() =>
+                  workspace.planningSessions?.length
+                    ? resumePlanning(workspace.planningSessions.at(-1)!.id)
+                    : startPlanning('brainstorm')
+                }
+              >
+                아이디어 기획
+              </button>
+            )}
             <button
               className={'icon-button ' + (assistant ? 'selected' : '')}
               title="AI 패널 표시 전환"
@@ -1059,6 +1192,8 @@ export default function App() {
           ) : briefing ? (
             <ProjectBriefing
               workspace={workspace}
+              onStartPlanning={startPlanning}
+              onResumePlanning={resumePlanning}
               onDocument={select}
               onMap={() => switchView('graph')}
               onFlows={(mode, flowId) => {
@@ -1072,6 +1207,27 @@ export default function App() {
                 setPanelTab('proposals');
                 setAssistant(true);
               }}
+            />
+          ) : view === 'planning' && activePlanning ? (
+            <PlanningWorkspace
+              key={workspace.root + activePlanning.id}
+              session={activePlanning}
+              sessions={workspace.planningSessions || []}
+              running={running || busy}
+              onDirty={setDirty}
+              onSelect={resumePlanning}
+              onStart={startPlanning}
+              onSave={async (patch) =>
+                update(
+                  await window.workspace.savePlanning(
+                    activePlanning.id,
+                    activePlanning.revision,
+                    patch,
+                    workspace.root,
+                  ),
+                )
+              }
+              onDraft={(instruction) => void request(instruction, undefined, undefined, 'draft')}
             />
           ) : view === 'graph' ? (
             <ProjectGraph
@@ -1291,10 +1447,7 @@ export default function App() {
                   <Plus size={14} />
                   직접 작성
                 </button>
-                <button
-                  className="button primary"
-                  onClick={() => preparePrompt('만들고 싶은 프로젝트는 ')}
-                >
+                <button className="button primary" onClick={() => startPlanning('brainstorm')}>
                   <Sparkles size={14} />
                   AI와 시작
                 </button>
@@ -1348,7 +1501,7 @@ export default function App() {
             </div>
             {panelTab === 'proposals' && workspace ? (
               <ProposalList
-                workspace={workspace}
+                workspace={assistantWorkspace!}
                 onAccept={(id, flow) =>
                   void act(async () => {
                     if (flow && dirty)
@@ -1366,14 +1519,16 @@ export default function App() {
                   void request(
                     `이전 제안 '${proposal.title}'을 수정해줘. 요청: ${text}`,
                     proposal.id,
+                    undefined,
+                    activePlanning ? 'draft' : 'discuss',
                   )
                 }
                 onSource={select}
               />
             ) : (
               <div className="chat-messages">
-                {workspace?.messages.length ? (
-                  workspace.messages.map((message) => (
+                {visibleMessages.length ? (
+                  visibleMessages.map((message) => (
                     <div key={message.id} className={'chat-message message-' + message.role}>
                       <div className="message-author">
                         {message.role === 'assistant' ? (
@@ -1400,7 +1555,18 @@ export default function App() {
                       <button
                         disabled={!workspace}
                         onClick={() =>
-                          preparePrompt('현재 프로젝트를 바탕으로 PRD 초안을 새 문서로 작성해줘.')
+                          activePlanning
+                            ? void request(
+                                '프로젝트 개요와 MVP 요구사항을 문서 초안으로 작성해줘.',
+                                undefined,
+                                undefined,
+                                'draft',
+                              )
+                            : isPlanningStart(docs)
+                              ? startPlanning('plan')
+                              : preparePrompt(
+                                  '현재 프로젝트를 바탕으로 PRD 초안을 새 문서로 작성해줘.',
+                                )
                         }
                       >
                         <FilePlus2 size={15} />
@@ -1444,10 +1610,27 @@ export default function App() {
               </div>
             )}
             <div className="composer-area">
+              {activePlanning &&
+                sentContext?.planningContext?.sessionId === activePlanning.id &&
+                !!sentContext.planningContext.omittedMessageCount && (
+                  <p className="planning-history-notice" role="status">
+                    대화가 길어 이번 요청에는 최근 대화와 저장한 기획 정리를 보냈습니다. 전체 대화
+                    기록은 이 프로젝트에 보존됩니다.
+                  </p>
+                )}
+
               {sentContext && (
                 <details className="sent-context">
-                  <summary>이번 요청의 원문 근거</summary>
-                  <ContextSelection context={sentContext} />
+                  <summary>
+                    {sentContext.planningContext
+                      ? '이번 요청의 기획 맥락'
+                      : '이번 요청의 원문 근거'}
+                  </summary>
+                  {sentContext.planningContext ? (
+                    <PlanningContext context={sentContext} />
+                  ) : (
+                    <ContextSelection context={sentContext} />
+                  )}
                   {sentContext.sources.map((source) => (
                     <details key={source.id}>
                       <summary>{source.title}</summary>
@@ -1456,7 +1639,7 @@ export default function App() {
                   ))}
                 </details>
               )}
-              {workspace && (
+              {workspace && !activePlanning && (
                 <label className="idea-mode">
                   <input
                     type="checkbox"
@@ -1470,11 +1653,18 @@ export default function App() {
               {workspace && (
                 <button className="context-chip" onClick={openContext}>
                   <Layers size={12} />
-                  <span>{section ? section.title : doc?.title || '프로젝트'} · 맥락 확인</span>
+                  <span>
+                    {activePlanning
+                      ? '기획 대화'
+                      : section
+                        ? section.title
+                        : doc?.title || '프로젝트'}{' '}
+                    · 맥락 확인
+                  </span>
                   <ChevronDown size={12} />
                 </button>
               )}
-              {workspace && (
+              {workspace && !activePlanning && (
                 <button
                   className="button analysis-chip"
                   disabled={running || busy || flowEditing}
@@ -1831,91 +2021,97 @@ export default function App() {
                     />
                   </div>
                 )}
-                <ContextSelection
-                  context={context}
-                  onExclude={(id) => {
-                    const nextExcluded = [...new Set([...excluded, id])];
-                    setExcluded(nextExcluded);
-                    void act(async () =>
-                      setContext(
-                        await window.workspace.previewContext(
-                          { ...contextInput(), excludedIds: nextExcluded },
-                          pendingContextRequest?.replacesId,
-                        ),
-                      ),
-                    );
-                  }}
-                />
-                <h3>전달할 문서</h3>
-                {docs.map((d) => {
-                  const active =
-                    !excluded.includes(d.id) && context.sources.some((s) => s.documentId === d.id);
-                  return (
-                    <label className="context-source" key={d.id}>
-                      <input
-                        type="checkbox"
-                        checked={active}
-                        onChange={(e) => {
-                          const nextExcluded = e.target.checked
-                            ? excluded.filter((id) => id !== d.id)
-                            : [...excluded, d.id];
-                          const nextIncluded = e.target.checked
-                            ? [...included, d.id]
-                            : included.filter((id) => id !== d.id);
-                          setExcluded(nextExcluded);
-                          setIncluded(nextIncluded);
-                          void act(async () =>
-                            setContext(
-                              await window.workspace.previewContext(
-                                {
-                                  ...contextInput(),
-                                  selectedIds: [
-                                    ...new Set([...(doc ? [doc.id] : []), ...nextIncluded]),
-                                  ],
-                                  excludedIds: nextExcluded,
-                                  mode: 'documents',
-                                },
-                                pendingContextRequest?.replacesId,
-                              ),
+                <PlanningContext context={context} />
+                {!context.planningContext && (
+                  <>
+                    <ContextSelection
+                      context={context}
+                      onExclude={(id) => {
+                        const nextExcluded = [...new Set([...excluded, id])];
+                        setExcluded(nextExcluded);
+                        void act(async () =>
+                          setContext(
+                            await window.workspace.previewContext(
+                              { ...contextInput(), excludedIds: nextExcluded },
+                              pendingContextRequest?.replacesId,
                             ),
-                          );
-                        }}
-                      />
-                      <FileText size={14} />
-                      <span>{d.title}</span>
-                      <small>{d.markdown.length.toLocaleString()}자</small>
-                    </label>
-                  );
-                })}
-                <div className="context-summary">
-                  <span>확정된 결정 {context.decisions.length}개</span>
-                  <span>수락·거절 이력 {context.proposalHistory.length}개</span>
-                  <span>제외 {context.omittedIds.length}개</span>
-                </div>
-                <details className="context-preview">
-                  <summary>확정된 결정과 처리 이력·기존 연결</summary>
-                  <pre>
-                    {JSON.stringify(
-                      {
-                        decisions: context.decisions,
-                        proposalHistory: context.proposalHistory,
-                        relations: context.relations,
-                        omittedRelationCount: context.omittedRelationCount,
-                      },
-                      null,
-                      2,
-                    )}
-                  </pre>
-                </details>
-                {context.sources.map((s) => (
-                  <details className="context-preview" key={s.id}>
-                    <summary>
-                      {s.title}
-                      <span>{s.revision.slice(0, 8)}</span>
-                    </summary>
-                    <pre>{s.content}</pre>
-                  </details>
-                ))}
+                          ),
+                        );
+                      }}
+                    />
+                    <h3>전달할 문서</h3>
+                    {docs.map((d) => {
+                      const active =
+                        !excluded.includes(d.id) &&
+                        context.sources.some((s) => s.documentId === d.id);
+                      return (
+                        <label className="context-source" key={d.id}>
+                          <input
+                            type="checkbox"
+                            checked={active}
+                            onChange={(e) => {
+                              const nextExcluded = e.target.checked
+                                ? excluded.filter((id) => id !== d.id)
+                                : [...excluded, d.id];
+                              const nextIncluded = e.target.checked
+                                ? [...included, d.id]
+                                : included.filter((id) => id !== d.id);
+                              setExcluded(nextExcluded);
+                              setIncluded(nextIncluded);
+                              void act(async () =>
+                                setContext(
+                                  await window.workspace.previewContext(
+                                    {
+                                      ...contextInput(),
+                                      selectedIds: [
+                                        ...new Set([...(doc ? [doc.id] : []), ...nextIncluded]),
+                                      ],
+                                      excludedIds: nextExcluded,
+                                      mode: 'documents',
+                                    },
+                                    pendingContextRequest?.replacesId,
+                                  ),
+                                ),
+                              );
+                            }}
+                          />
+                          <FileText size={14} />
+                          <span>{d.title}</span>
+                          <small>{d.markdown.length.toLocaleString()}자</small>
+                        </label>
+                      );
+                    })}
+                    <div className="context-summary">
+                      <span>확정된 결정 {context.decisions.length}개</span>
+                      <span>수락·거절 이력 {context.proposalHistory.length}개</span>
+                      <span>제외 {context.omittedIds.length}개</span>
+                    </div>
+                    <details className="context-preview">
+                      <summary>확정된 결정과 처리 이력·기존 연결</summary>
+                      <pre>
+                        {JSON.stringify(
+                          {
+                            decisions: context.decisions,
+                            proposalHistory: context.proposalHistory,
+                            relations: context.relations,
+                            omittedRelationCount: context.omittedRelationCount,
+                          },
+                          null,
+                          2,
+                        )}
+                      </pre>
+                    </details>
+                    {context.sources.map((s) => (
+                      <details className="context-preview" key={s.id}>
+                        <summary>
+                          {s.title}
+                          <span>{s.revision.slice(0, 8)}</span>
+                        </summary>
+                        <pre>{s.content}</pre>
+                      </details>
+                    ))}
+                  </>
+                )}
                 <div className="modal-footer">
                   {(context.flowContext || pendingContextRequest) && (
                     <button

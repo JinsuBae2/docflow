@@ -119,3 +119,45 @@ it('retains whole Korean turns locally when long history is omitted from a bound
     await rm(root, { recursive: true, force: true });
   }
 });
+
+it('allows only same-session create proposal revisions and rejection review in planning', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'docflow-planning-revision-'));
+  const store = await ProjectStore.open(root);
+  try {
+    const sessions = new PlanningSessionStore(store);
+    const session = sessions.start('plan');
+    const input = {
+      mode: 'idea' as const,
+      instruction: '수정해줘',
+      selectedIds: [],
+      excludedIds: [],
+      planningSessionId: session.id,
+      planningAction: 'draft' as const,
+    };
+    const original = await buildContext(input, store);
+    const proposal = {
+      id: 'proposal',
+      kind: 'create',
+      status: 'pending',
+      snapshotId: original.id,
+      title: '개요',
+      targetId: null,
+    };
+    store.put('proposal', proposal);
+    const revision = await buildContext(input, store, proposal.id);
+    expect(revision.revisionProposal?.id).toBe(proposal.id);
+    const other = sessions.start('plan');
+    await expect(
+      buildContext({ ...input, planningSessionId: other.id }, store, proposal.id),
+    ).rejects.toThrow();
+    store.put('proposal', { ...proposal, status: 'rejected' });
+    store.put('feedback', { id: 'feedback', proposalId: proposal.id, reason: '범위 축소' });
+    const feedback = await buildContext(input, store, undefined, 'feedback');
+    expect(feedback.rejectedProposal?.rejectionReason).toBe('범위 축소');
+    store.put('proposal', { ...proposal, kind: 'update' });
+    await expect(buildContext(input, store, proposal.id)).rejects.toThrow();
+  } finally {
+    store.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});

@@ -27,9 +27,7 @@ export async function buildContext(
     (input.mode !== 'idea' ||
       input.selectedIds.length ||
       input.excludedIds.length ||
-      input.flowId !== undefined ||
-      replacesId ||
-      feedbackId)
+      input.flowId !== undefined)
   )
     throw new Error('기획 대화는 문서/유저플로우 검토와 별도로 진행해 주세요.');
   const excluded = new Set(input.excludedIds);
@@ -43,6 +41,15 @@ export async function buildContext(
     throw new Error('거절 피드백 맥락을 확인해 주세요.');
   if (replacesId && (!revisionProposal || !['pending', 'stale'].includes(revisionProposal.status)))
     throw new Error('수정 요청할 대기 제안을 찾을 수 없습니다.');
+  if (input.planningSessionId && (revisionProposal || rejected)) {
+    const proposal = (revisionProposal || rejected)!;
+    const origin = store.get<ContextSnapshot>('context', proposal.snapshotId);
+    if (
+      proposal.kind !== 'create' ||
+      origin?.planningContext?.sessionId !== input.planningSessionId
+    )
+      throw new Error('현재 기획에서 생성한 새 문서 제안만 검토할 수 있습니다.');
+  }
   if (revisionProposal?.targetId && revisionProposal.kind !== 'flow')
     selected.add(revisionProposal.targetId);
   const previousFlowProposal =
@@ -74,7 +81,10 @@ export async function buildContext(
   for (const id of selected)
     if (!docFor(id)) throw new Error('선택한 문서를 찾을 수 없습니다. 최신 문서를 확인해 주세요.');
   const source = originalSource;
-  if (input.mode === 'idea' && (selected.size || flowContext || revisionProposal || feedback))
+  if (
+    input.mode === 'idea' &&
+    (selected.size || flowContext || (!input.planningSessionId && (revisionProposal || feedback)))
+  )
     throw new Error('아이디어 상담에는 문서나 기존 제안을 포함할 수 없습니다.');
   const sources: ContextSource[] = [];
   const omittedIds: string[] = [];
@@ -110,6 +120,16 @@ export async function buildContext(
       })),
     omittedIds,
   };
+  if (revisionProposal) snapshot.revisionProposal = revisionProposal;
+  if (rejected && feedback) {
+    snapshot.rejectedProposal = {
+      id: rejected.id,
+      title: rejected.title,
+      kind: rejected.kind,
+      rejectionReason: feedback.reason,
+    };
+    snapshot.proposalHistory = snapshot.proposalHistory.map((p) => ({ ...p, reason: '' }));
+  }
   const limit = input.maxCharacters ?? 60000;
   if (input.planningSessionId) {
     attachPlanningContext(
@@ -121,16 +141,6 @@ export async function buildContext(
     );
     store.saveSnapshot(snapshot);
     return snapshot;
-  }
-  if (revisionProposal) snapshot.revisionProposal = revisionProposal;
-  if (rejected && feedback) {
-    snapshot.rejectedProposal = {
-      id: rejected.id,
-      title: rejected.title,
-      kind: rejected.kind,
-      rejectionReason: feedback.reason,
-    };
-    snapshot.proposalHistory = snapshot.proposalHistory.map((p) => ({ ...p, reason: '' }));
   }
   const linkedIds = new Set(
     ws.relations
