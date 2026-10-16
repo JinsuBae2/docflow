@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { MapCanvas } from './MapCanvas';
+import { PlanningGraph } from './PlanningGraph';
 import { Link2, Unlink, Pencil, Sparkles } from 'lucide-react';
 import type { Relation, Workspace } from '../../../shared/contracts';
 const origins = {
@@ -26,6 +27,10 @@ export function ProjectGraph({
   onEdit: (id: string, type: string) => Promise<void>;
   busy: boolean;
 }) {
+  const modeKey = `docflow-map-mode:${workspace.project.id}`;
+  const [mode, setMode] = useState(() =>
+    localStorage.getItem(modeKey) === 'connections' ? 'connections' : 'planning',
+  );
   const [editing, setEditing] = useState('');
   const [relationType, setRelationType] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
@@ -38,48 +43,99 @@ export function ProjectGraph({
   );
   return (
     <div className="graph-view">
-      <MapCanvas
-        key={workspace.project.id}
-        workspace={workspace}
-        busy={busy}
-        onSelect={onSelect}
-        onConnect={onConnect}
-        toolbarActions={
-          <div className="action-row">
-            <button
-              className="button compact"
-              data-tooltip="검토할 문서와 전송 맥락을 확인합니다. AI 연결 제안은 수락하기 전까지 반영하지 않습니다."
-              disabled={busy || workspace.documents.length < 2}
-              onClick={onReview}
-            >
-              <Sparkles size={14} />
-              AI로 연결 검토
-            </button>
-            <button
-              className="button compact"
-              disabled={busy || workspace.documents.length < 2}
-              onClick={() => onConnect()}
-            >
-              <Link2 size={14} />
-              연결 추가
-            </button>
-          </div>
-        }
-        onEdgeSelect={(ids) => {
-          setSelected(ids);
-          setSelectedDocument('');
-          if (ids.length) setDetailsOpen(true);
-        }}
-        selectedEdge={selected}
-        selectedDocument={selectedDocument}
-        onDocumentSelect={(id) => {
-          setSelectedDocument(id);
-          setSelected([]);
-          setDetailsOpen(!!id);
-        }}
-      />
+      <div className="planning-mode-controls" aria-label="문서 구조 탐색 방식">
+        <button
+          className="button compact"
+          aria-pressed={mode === 'planning'}
+          onClick={() => {
+            setMode('planning');
+            localStorage.setItem(modeKey, 'planning');
+          }}
+        >
+          기획 펼치기
+        </button>
+        <button
+          className="button compact"
+          aria-pressed={mode === 'connections'}
+          onClick={() => {
+            setMode('connections');
+            localStorage.setItem(modeKey, 'connections');
+          }}
+        >
+          연결 탐색
+        </button>
+      </div>
+      {mode === 'planning' ? (
+        <PlanningGraph
+          key={workspace.project.id}
+          workspace={workspace}
+          onSelect={onSelect}
+          toolbarActions={
+            <div className="action-row">
+              <button
+                className="button compact"
+                disabled={busy || workspace.documents.length < 2}
+                onClick={onReview}
+              >
+                <Sparkles size={14} />
+                AI로 연결 검토
+              </button>
+              <button
+                className="button compact"
+                disabled={busy || workspace.documents.length < 2}
+                onClick={() => onConnect()}
+              >
+                <Link2 size={14} />
+                연결 추가
+              </button>
+            </div>
+          }
+        />
+      ) : (
+        <MapCanvas
+          key={workspace.project.id}
+          workspace={workspace}
+          busy={busy}
+          onSelect={onSelect}
+          onConnect={onConnect}
+          toolbarActions={
+            <div className="action-row">
+              <button
+                className="button compact"
+                data-tooltip="검토할 문서와 전송 맥락을 확인합니다. AI 연결 제안은 수락하기 전까지 반영하지 않습니다."
+                disabled={busy || workspace.documents.length < 2}
+                onClick={onReview}
+              >
+                <Sparkles size={14} />
+                AI로 연결 검토
+              </button>
+              <button
+                className="button compact"
+                disabled={busy || workspace.documents.length < 2}
+                onClick={() => onConnect()}
+              >
+                <Link2 size={14} />
+                연결 추가
+              </button>
+            </div>
+          }
+          onEdgeSelect={(ids) => {
+            setSelected(ids);
+            setSelectedDocument('');
+            if (ids.length) setDetailsOpen(true);
+          }}
+          selectedEdge={selected}
+          selectedDocument={selectedDocument}
+          onDocumentSelect={(id) => {
+            setSelectedDocument(id);
+            setSelected([]);
+            setDetailsOpen(!!id);
+          }}
+        />
+      )}
       <details
         className="relations-list"
+        hidden={mode !== 'connections'}
         open={detailsOpen}
         onToggle={(event) => setDetailsOpen(event.currentTarget.open)}
       >

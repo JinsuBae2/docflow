@@ -103,6 +103,37 @@ describe('bounded project analysis', () => {
     expect(service.get(third.id).error).toMatch(/변경/);
   });
 
+  it('processes cancellation from the event loop while reusing cached batches', async () => {
+    await store.createDocument('큰 문서', 'note', '# 인증\n' + '내용\n'.repeat(10000));
+    const service = new AnalysisService(store);
+    let calls = 0;
+    const factory = fake(async function* () {
+      calls++;
+      yield { type: 'result', response: { message: '완료', proposals: [] } };
+    });
+    const first = service.prepare(input, settings);
+    for await (const _ of service.run(first.id, factory, new AbortController().signal)) void _;
+    const billedCalls = calls;
+    const next = service.prepare(input, settings);
+    expect(next.total).toBeGreaterThan(1);
+    const controller = new AbortController();
+    let cancellation: ReturnType<typeof setImmediate> | undefined;
+    try {
+      for await (const event of service.run(next.id, factory, controller.signal)) {
+        if (event.type === 'progress' && !cancellation)
+          cancellation = setImmediate(() => controller.abort());
+      }
+      expect(service.get(next.id).status).toBe('paused');
+      expect(service.get(next.id).completed).toBeLessThan(next.total);
+      expect(calls).toBe(billedCalls);
+    } finally {
+      if (cancellation) clearImmediate(cancellation);
+    }
+    for await (const _ of service.run(next.id, factory, new AbortController().signal)) void _;
+    expect(service.get(next.id).cached).toBe(next.total);
+    expect(calls).toBe(billedCalls);
+  });
+
   it('keeps completed/staged work after restart and records each billed retry separately', async () => {
     await store.createDocument('문서', 'note', '# 제목\n본문');
     let service = new AnalysisService(store);

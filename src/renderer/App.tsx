@@ -1058,6 +1058,7 @@ export default function App() {
             />
           ) : view === 'graph' ? (
             <ProjectGraph
+              key={workspace.project.id}
               workspace={workspace}
               busy={busy || running}
               onReview={reviewRelations}

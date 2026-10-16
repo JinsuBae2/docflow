@@ -24,6 +24,7 @@ test('previews AI relationship evidence, applies only reviewed links and edits c
     await page.getByRole('textbox', { name: 'Markdown 본문' }).fill(original + '\n보존된 초안');
     page.once('dialog', (dialog) => dialog.accept());
     await page.getByRole('button', { name: '문서 구조', exact: true }).click();
+    await page.getByRole('button', { name: '연결 탐색', exact: true }).click();
     await page.getByRole('button', { name: 'AI로 연결 검토', exact: true }).click();
     await expect(page.getByRole('alert').filter({ hasText: /초안.*저장/ })).toBeVisible();
     await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -52,6 +53,7 @@ test('previews AI relationship evidence, applies only reviewed links and edits c
     await expect(page.getByRole('textbox', { name: 'Markdown 본문' })).toHaveValue(/보존된 초안/);
     await page.getByRole('button', { name: '저장', exact: true }).click();
     await page.getByRole('button', { name: '문서 구조', exact: true }).click();
+    await page.getByRole('button', { name: '연결 탐색', exact: true }).click();
 
     await page.getByRole('button', { name: 'AI로 연결 검토', exact: true }).click();
     const before = (await page.evaluate(() => window.workspace.current()))!;

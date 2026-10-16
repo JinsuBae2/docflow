@@ -33,6 +33,7 @@ test('opens documents, reviews proposals, persists decisions and displays a rela
     await page.getByRole('button', { name: '문서', exact: true }).click();
     await expect(page.getByRole('heading', { name: '프로젝트 개요', exact: true })).toBeVisible();
     await page.getByRole('button', { name: '문서 구조', exact: true }).click();
+    await page.getByRole('button', { name: '연결 탐색', exact: true }).click();
     await expect(page.locator('.map-document')).toHaveCount(3);
     await page.getByRole('button', { name: '문서', exact: true }).click();
     await page.getByRole('textbox', { name: 'AI에게 요청' }).fill('누락된 예외 처리를 제안해줘');
@@ -318,6 +319,7 @@ test('onboards, previews local imports without losing drafts, saves the CLI mode
     await expect(editor).toBeHidden();
     await page.screenshot({ path: 'outputs/improved-document.png', fullPage: true });
     await page.getByRole('button', { name: '문서 구조', exact: true }).click();
+    await page.getByRole('button', { name: '연결 탐색', exact: true }).click();
     await expect(page.locator('.map-document')).toHaveCount(5);
     await page.keyboard.press('Escape');
     await page.screenshot({ path: 'outputs/improved-graph.png', fullPage: true });

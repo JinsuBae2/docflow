@@ -68,6 +68,7 @@ test('keeps 24 document cards readable, focuses one hop and restores section end
       };
     });
     await page.getByRole('button', { name: '문서 구조', exact: true }).click();
+    await page.getByRole('button', { name: '연결 탐색', exact: true }).click();
     await expect(page.locator('.map-document')).toHaveCount(24);
     await expect(page.locator('.map-root, .map-section')).toHaveCount(0);
     const sidebarTitles = await page

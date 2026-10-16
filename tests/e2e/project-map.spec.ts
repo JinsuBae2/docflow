@@ -21,6 +21,7 @@ test('shows document cards with embedded sections, persists dragged cards, folds
     await page.getByRole('button', { name: '안내 닫기' }).click();
     await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
     await page.getByRole('button', { name: '문서 구조', exact: true }).click();
+    await page.getByRole('button', { name: '연결 탐색', exact: true }).click();
     await expect(page.locator('.map-root')).toHaveCount(0);
     await expect(page.locator('.map-document')).toHaveCount(3);
     await expect(page.locator('.react-flow__node .map-section')).toHaveCount(0);
@@ -104,6 +105,7 @@ test('shows document cards with embedded sections, persists dragged cards, folds
     app = await launch();
     page = await app.firstWindow();
     await page.getByRole('button', { name: '문서 구조', exact: true }).click();
+    await page.getByRole('button', { name: '연결 탐색', exact: true }).click();
     const restored = await page.evaluate(() => window.workspace.projectMap());
     expect(restored.positions).toContainEqual(saved);
     expect(restored.collapsedDocumentIds).toContain(id);
