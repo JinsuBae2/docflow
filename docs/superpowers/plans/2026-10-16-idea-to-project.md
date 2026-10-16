@@ -89,9 +89,9 @@
 
 **Interfaces:** 기존 create 제안 검토/수락, document ID/revision, 문서 근거 검토 및 유저플로우 생성 API를 그대로 사용한다. planning 화면의 문서 후보 기본값은 개요·MVP 요구사항·핵심 사용자 시나리오이며 요청 텍스트에서 조정한다.
 
-- [ ] E2E에서 상담만 진행 시 문서 0개, 생성 제안 수락 전 0개, 일부 수락 시 해당 문서만 생성됨, 거절 시 유지, 기존 문서의 revision 충돌 시 초안 유지, 저장된 문서로 근거 검토/유저플로우 생성 진입을 검증한다.
-- [ ] `npx playwright test tests/e2e/planning.spec.ts tests/e2e/project-understanding.spec.ts tests/e2e/flow-proposals.spec.ts` → PASS.
-- [ ] `npm run lint`, `npm run format:check`, `npm run typecheck`, `npm test`, `npm run build`, `npm run test:e2e`를 순서대로 실행하고 실제 결과·제한을 검증 기록에 남긴다. 빌드와 전체 단위 테스트를 동시에 돌리지 않는다.
-- [ ] 전체 branch diff를 별도 읽기 전용 리뷰에 전달한다. 중요한 발견은 실패 테스트로 재현해 보완하고 관련/전체 회귀를 검증한다.
-- [ ] `test(planning): 아이디어 문서화와 세션 복원 회귀 검증` 커밋.
+- [x] E2E에서 상담만 진행 시 문서 0개, 생성 제안 수락 전 0개, 일부 수락 시 해당 문서만 생성됨, 거절 시 유지, 기존 문서의 revision 충돌 시 초안 유지, 저장된 문서로 근거 검토/유저플로우 생성 진입을 검증한다.
+- [x] `npx playwright test tests/e2e/planning.spec.ts tests/e2e/project-understanding.spec.ts tests/e2e/flow-proposals.spec.ts` → PASS.
+- [x] `npm run lint`, `npm run format:check`, `npm run typecheck`, `npm test`, `npm run build`, `npm run test:e2e`를 순서대로 실행하고 실제 결과·제한을 검증 기록에 남긴다. 빌드와 전체 단위 테스트를 동시에 돌리지 않는다.
+- [x] 전체 branch diff를 별도 읽기 전용 리뷰에 전달한다. 중요한 발견은 실패 테스트로 재현해 보완하고 관련/전체 회귀를 검증한다.
+- [x] `test(planning): 아이디어 문서화와 세션 복원 회귀 검증` 커밋.
 - [ ] `feat(planning): 빈 프로젝트의 브레인스토밍과 소프트웨어 기획 지원` PR 제목, 저장소 템플릿의 목적/변경/검증/AI 활용/확인 항목, `Closes #46`을 적용한다. main 대상 PR을 만들고 macOS·Windows CI·제목 검사 통과를 확인한다. 사용자 요청 없이 main에 머지하지 않는다.
