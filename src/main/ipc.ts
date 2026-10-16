@@ -36,6 +36,8 @@ import type {
 } from '../shared/contracts';
 import { normalizeCodexUsage } from './ai/usage';
 import { documentTypeSchema } from '../shared/proposal-schema';
+import { planningModeSchema, planningPatchSchema } from '../shared/planning';
+import { PlanningSessionStore } from './project/planning';
 const str = z
   .string()
   .max(2_000_000)
@@ -47,6 +49,8 @@ const id = z.string().min(1).max(250);
 const contextSchema = z
   .object({
     flowId: id.nullable().optional(),
+    planningSessionId: id.optional(),
+    planningAction: z.enum(['discuss', 'draft']).optional(),
     mode: z.enum(['documents', 'idea']).optional(),
     reviewedContextId: id.optional(),
     instruction: z.string().min(1).max(10000),
@@ -56,6 +60,8 @@ const contextSchema = z
   })
   .strict();
 const schemas: Record<string, z.ZodType> = {
+  startPlanning: z.tuple([planningModeSchema, z.string().max(4000)]),
+  savePlanning: z.tuple([id, id, planningPatchSchema, z.string().max(4000)]),
   saveUserFlow: z.tuple([userFlowSchema, id.nullable(), z.string().max(4000)]),
   importUserFlow: z.tuple([id, id, z.string().max(4000)]),
   projectMap: z.tuple([]),
@@ -99,7 +105,8 @@ const schemas: Record<string, z.ZodType> = {
     z
       .object({
         selectedId: z.string().max(250),
-        view: z.enum(['document', 'graph', 'diagram']),
+        view: z.enum(['document', 'graph', 'diagram', 'planning']),
+        planningSessionId: id.optional(),
         prompt: z.string().max(10000),
         collapsed: z.boolean(),
       })
@@ -514,6 +521,16 @@ export function registerWorkspace(window: BrowserWindow) {
       }
       case 'previewContext':
         return buildContext(args[0], requireStore(), args[1]);
+      case 'startPlanning':
+      case 'savePlanning': {
+        const current = requireStore();
+        if (current.root !== args[method === 'startPlanning' ? 1 : 3])
+          throw new Error('프로젝트가 변경되었습니다.');
+        const planning = new PlanningSessionStore(current);
+        if (method === 'startPlanning') planning.start(args[0]);
+        else planning.save(args[0], args[1], args[2]);
+        return current.workspace();
+      }
       case 'projectMap':
         return new ProjectMapStore(requireStore()).read();
       case 'saveUserFlow': {
@@ -688,6 +705,22 @@ export function registerWorkspace(window: BrowserWindow) {
             throw new Error(
               '요청 맥락에 미저장 초안이 있습니다. 초안을 저장하거나 해당 문서를 제외해 주세요.',
             );
+          if (snapshot.planningContext) {
+            s.transaction(() => {
+              if (!feedback)
+                s.put('message', {
+                  id: randomUUID(),
+                  role: 'user',
+                  text: input.instruction,
+                  requestId: snapshot.requestId,
+                  createdAt: new Date().toISOString(),
+                });
+              new PlanningSessionStore(s).attachRequest(
+                snapshot.planningContext!.sessionId,
+                snapshot.requestId,
+              );
+            });
+          }
           if (feedback) feedbackService.setStatus(feedback.id, 'running', snapshot.requestId);
           provider = makeProvider(preferences.provider);
         } catch (error) {
@@ -705,7 +738,7 @@ export function registerWorkspace(window: BrowserWindow) {
           status: 'running',
           usage: normalizeCodexUsage(undefined),
         };
-        if (!feedback) {
+        if (!feedback && !snapshot.planningContext) {
           const userMessage: Message = {
             id: randomUUID(),
             role: 'user',
@@ -750,7 +783,30 @@ export function registerWorkspace(window: BrowserWindow) {
                   terminal = { type: 'cancelled' };
                   break;
                 }
-                await new ProposalService(s).register(snapshot.id, aiEvent.response, replacesId);
+                if (snapshot.planningContext) {
+                  const planning = new PlanningSessionStore(s);
+                  const current = planning.read(snapshot.planningContext.sessionId);
+                  if (current.revision !== snapshot.planningContext.revision)
+                    throw new Error('기획이 변경되었습니다. 다시 요청해 주세요.');
+                  if (
+                    aiEvent.response.proposals.some((proposal) => proposal.kind !== 'create') ||
+                    (snapshot.planningContext.action === 'discuss' &&
+                      aiEvent.response.proposals.length)
+                  )
+                    throw new Error('기획 대화에는 요청한 새 문서 초안만 제안할 수 있습니다.');
+                }
+                await new ProposalService(s).register(
+                  snapshot.id,
+                  { message: aiEvent.response.message, proposals: aiEvent.response.proposals },
+                  replacesId,
+                );
+                if (snapshot.planningContext && aiEvent.response.planningSuggestion)
+                  new PlanningSessionStore(s).suggest(
+                    snapshot.planningContext.sessionId,
+                    snapshot.planningContext.revision,
+                    requestId,
+                    aiEvent.response.planningSuggestion,
+                  );
                 s.put('message', {
                   id: randomUUID(),
                   role: 'assistant',

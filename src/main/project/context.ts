@@ -1,6 +1,8 @@
 import { contextPayload } from '../../shared/context-payload';
 import { originalSource, selectContextSources } from './context-selection';
 import { randomUUID } from 'node:crypto';
+import { PlanningSessionStore } from './planning';
+import { attachPlanningContext } from './planning-context';
 import { UserFlowStore } from './user-flows';
 import { flowInstructions, documentInstructions } from '../ai/instructions';
 import { flowOutputSchema, outputSchema } from '../../shared/proposal-schema';
@@ -18,6 +20,16 @@ export async function buildContext(
   feedbackId?: string,
 ): Promise<ContextSnapshot> {
   const ws = store.workspace();
+  if (input.planningAction && !input.planningSessionId)
+    throw new Error('기획 세션을 선택해 주세요.');
+  if (
+    input.planningSessionId &&
+    (input.mode !== 'idea' ||
+      input.selectedIds.length ||
+      input.excludedIds.length ||
+      input.flowId !== undefined)
+  )
+    throw new Error('기획 대화는 문서/유저플로우 검토와 별도로 진행해 주세요.');
   const excluded = new Set(input.excludedIds);
   const selected = new Set(input.selectedIds);
   const revisionProposal = replacesId ? ws.proposals.find((p) => p.id === replacesId) : undefined;
@@ -29,6 +41,15 @@ export async function buildContext(
     throw new Error('거절 피드백 맥락을 확인해 주세요.');
   if (replacesId && (!revisionProposal || !['pending', 'stale'].includes(revisionProposal.status)))
     throw new Error('수정 요청할 대기 제안을 찾을 수 없습니다.');
+  if (input.planningSessionId && (revisionProposal || rejected)) {
+    const proposal = (revisionProposal || rejected)!;
+    const origin = store.get<ContextSnapshot>('context', proposal.snapshotId);
+    if (
+      proposal.kind !== 'create' ||
+      origin?.planningContext?.sessionId !== input.planningSessionId
+    )
+      throw new Error('현재 기획에서 생성한 새 문서 제안만 검토할 수 있습니다.');
+  }
   if (revisionProposal?.targetId && revisionProposal.kind !== 'flow')
     selected.add(revisionProposal.targetId);
   const previousFlowProposal =
@@ -60,7 +81,10 @@ export async function buildContext(
   for (const id of selected)
     if (!docFor(id)) throw new Error('선택한 문서를 찾을 수 없습니다. 최신 문서를 확인해 주세요.');
   const source = originalSource;
-  if (input.mode === 'idea' && (selected.size || flowContext || revisionProposal || feedback))
+  if (
+    input.mode === 'idea' &&
+    (selected.size || flowContext || (!input.planningSessionId && (revisionProposal || feedback)))
+  )
     throw new Error('아이디어 상담에는 문서나 기존 제안을 포함할 수 없습니다.');
   const sources: ContextSource[] = [];
   const omittedIds: string[] = [];
@@ -96,7 +120,6 @@ export async function buildContext(
       })),
     omittedIds,
   };
-  const limit = input.maxCharacters ?? 60000;
   if (revisionProposal) snapshot.revisionProposal = revisionProposal;
   if (rejected && feedback) {
     snapshot.rejectedProposal = {
@@ -106,6 +129,18 @@ export async function buildContext(
       rejectionReason: feedback.reason,
     };
     snapshot.proposalHistory = snapshot.proposalHistory.map((p) => ({ ...p, reason: '' }));
+  }
+  const limit = input.maxCharacters ?? 60000;
+  if (input.planningSessionId) {
+    attachPlanningContext(
+      snapshot,
+      new PlanningSessionStore(store).read(input.planningSessionId),
+      ws.messages,
+      input.planningAction || 'discuss',
+      limit,
+    );
+    store.saveSnapshot(snapshot);
+    return snapshot;
   }
   const linkedIds = new Set(
     ws.relations
@@ -181,6 +216,7 @@ export async function buildContext(
 export function assertReviewedContext(current: ContextSnapshot, reviewed?: ContextSnapshot) {
   const comparable = (s: ContextSnapshot) => ({
     instruction: s.instruction,
+    planningContext: s.planningContext,
     project: s.project,
     requiresEvidence: s.requiresEvidence,
     sources: s.sources,

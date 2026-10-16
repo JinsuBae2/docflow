@@ -1,5 +1,13 @@
 import type { MapPosition, MapView, ProjectMap } from './project-map';
 import type { UserFlow } from './user-flow';
+import type {
+  PlanningMode,
+  PlanningPatch,
+  PlanningSession,
+  PlanningBrief,
+  PlanningContext,
+  PlanningSelection,
+} from './planning';
 export type Id = string;
 export type Revision = string;
 export interface ProjectEntry {
@@ -17,7 +25,8 @@ export interface EditorDraft {
 }
 export interface ProjectSession {
   selectedId: Id;
-  view: 'document' | 'graph' | 'diagram';
+  view: 'document' | 'graph' | 'diagram' | 'planning';
+  planningSessionId?: string;
   prompt: string;
   collapsed: boolean;
 }
@@ -248,6 +257,8 @@ export interface ContextSelection {
   omittedHistory: number;
 }
 export interface ContextSnapshot {
+  planningContext?: PlanningContext;
+  planningSelection?: PlanningSelection;
   requiresEvidence?: boolean;
   selection?: ContextSelection;
   flowEstimate?: { inputTokens: number };
@@ -273,6 +284,7 @@ export interface ContextSnapshot {
   omittedRelationCount?: number;
 }
 export interface AiResponse {
+  planningSuggestion?: PlanningBrief;
   message: string;
   proposals: ProposalDraft[];
 }
@@ -295,6 +307,7 @@ export interface Message {
   createdAt: string;
 }
 export interface Workspace {
+  planningSessions?: PlanningSession[];
   userFlows?: UserFlow[];
   userFlowIssues?: string[];
   mapView?: MapView;
@@ -337,6 +350,8 @@ export interface ProjectFlow {
   contentEnd?: number;
 }
 export interface ContextInput {
+  planningSessionId?: string;
+  planningAction?: 'discuss' | 'draft';
   mode?: 'documents' | 'idea';
   reviewedContextId?: Id;
   flowId?: string | null;
@@ -432,6 +447,13 @@ export interface WorkspaceApi {
     root: string,
   ): Promise<void>;
   createProject(): Promise<Workspace | null>;
+  startPlanning(mode: PlanningMode, root: string): Promise<Workspace>;
+  savePlanning(
+    id: string,
+    expectedRevision: string,
+    patch: PlanningPatch,
+    root: string,
+  ): Promise<Workspace>;
   openExample(): Promise<Workspace>;
   current(): Promise<Workspace | null>;
   previewImport(): Promise<ImportPreview | null>;

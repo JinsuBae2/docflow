@@ -13,13 +13,13 @@ import type {
   UsageLimits,
 } from '../../shared/contracts';
 import {
-  outputSchema,
-  flowOutputSchema,
-  responseSchema,
+  requestOutputSchema,
+  requestResponseSchema,
+  normalizePlanningResponse,
   normalizeAiResponse,
 } from '../../shared/proposal-schema';
 import type { AiProvider } from './provider';
-import { documentInstructions, flowInstructions } from './instructions';
+import { documentInstructions, flowInstructions, planningInstructions } from './instructions';
 import { codexLimits, normalizeCodexUsage } from './usage';
 
 type RpcMessage = {
@@ -330,7 +330,11 @@ export class CodexProvider implements AiProvider {
             push(
               {
                 type: 'result',
-                response: responseSchema.parse(normalizeAiResponse(JSON.parse(text))),
+                response: requestResponseSchema(context).parse(
+                  (context.planningContext ? normalizePlanningResponse : normalizeAiResponse)(
+                    JSON.parse(text),
+                  ),
+                ),
               },
               true,
             );
@@ -347,7 +351,11 @@ export class CodexProvider implements AiProvider {
         if (m.method === 'error' && !m.params?.willRetry)
           push({ type: 'error', message: m.params.error?.message || 'Codex 요청 오류' }, true);
       };
-      const instructions = context.flowContext ? flowInstructions : documentInstructions;
+      const instructions = context.planningContext
+        ? planningInstructions
+        : context.flowContext
+          ? flowInstructions
+          : documentInstructions;
       const inherited = await this.rpc('config/read', { includeLayers: false });
       const instructionPath = join(this.directory!, 'docflow-instructions.md');
       await writeFile(instructionPath, instructions, 'utf8');
@@ -385,7 +393,7 @@ export class CodexProvider implements AiProvider {
       const turn = await this.rpc('turn/start', {
         threadId,
         input: [{ type: 'text', text: JSON.stringify(contextPayload(context)) }],
-        outputSchema: context.flowContext ? flowOutputSchema : outputSchema,
+        outputSchema: requestOutputSchema(context),
         permissions: 'docflow',
         approvalPolicy: 'never',
         ...(model ? { model } : {}),

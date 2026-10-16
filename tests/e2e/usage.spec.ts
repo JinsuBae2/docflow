@@ -6,7 +6,11 @@ import { ProjectStore } from '../../src/main/project/store';
 test('shows measured tokens, account windows and unavailable reasons without generating on refresh', async () => {
   const root = await mkdtemp(join(tmpdir(), 'docflow-usage-e2e-'));
   const store = await ProjectStore.open(join(root, 'project'));
-  await store.createDocument('사용량 예제', 'note', '# 사용량 예제');
+  await store.createDocument(
+    '사용량 예제',
+    'note',
+    '# 사용량 예제\n사용량 측정을 검증하는 문서입니다.',
+  );
   store.put('message', {
     id: 'past',
     requestId: 'past',

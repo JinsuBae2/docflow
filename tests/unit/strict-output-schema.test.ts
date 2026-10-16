@@ -4,6 +4,7 @@ import { expect, it } from 'vitest';
 import {
   outputSchema,
   flowOutputSchema,
+  planningOutputSchema,
   normalizeAiResponse,
   responseSchema,
 } from '../../src/shared/proposal-schema';
@@ -25,6 +26,7 @@ function check(schema: unknown, path = 'schema') {
 it.each([
   ['document', outputSchema],
   ['flow', flowOutputSchema],
+  ['planning', planningOutputSchema],
 ])('requires all nested properties in %s generation schemas', (_, schema) => check(schema));
 
 it('normalizes only optional AI nulls while preserving required nulls and strict local storage validation', () => {

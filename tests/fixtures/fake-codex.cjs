@@ -254,10 +254,14 @@ readline.createInterface({ input: process.stdin }).on('line', (line) => {
         const item = {
           id: 'answer',
           type: 'agentMessage',
-          text: JSON.stringify({
-            message: context.rejectedProposal ? '거절 이유를 검토했습니다.' : '검토했습니다.',
-            proposals,
-          }),
+          text: JSON.stringify(
+            context.planningContext
+              ? require('./planning-response.cjs')(context)
+              : {
+                  message: context.rejectedProposal ? '거절 이유를 검토했습니다.' : '검토했습니다.',
+                  proposals,
+                },
+          ),
         };
         send({ method: 'item/completed', params: { threadId: 'test-thread', item } });
         send({ method: 'item/completed', params: { threadId: 'test-thread', item } });

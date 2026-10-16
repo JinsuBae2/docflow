@@ -1,6 +1,8 @@
 import { strictOutputSchema, normalizeOptionalNulls } from './ai-json-schema';
 import { z } from 'zod';
 import { userFlowSchema } from './user-flow';
+import { planningBriefSchema } from './planning';
+import type { ContextSnapshot } from './contracts';
 export const documentTypeSchema = z.enum(['overview', 'prd', 'feature', 'flow', 'design', 'note']);
 const documentProposalSchema = z
   .object({
@@ -61,5 +63,23 @@ export const flowOutputSchema = strictOutputSchema(
 );
 
 const responseJsonSchema = z.toJSONSchema(responseSchema);
+export const planningResponseSchema = z
+  .object({
+    message: z.string().max(30000),
+    proposals: z.array(documentProposalSchema).max(4),
+    planningSuggestion: planningBriefSchema.optional(),
+  })
+  .strict();
+export const planningOutputSchema = strictOutputSchema(z.toJSONSchema(planningResponseSchema));
+export const requestOutputSchema = (context: ContextSnapshot) =>
+  context.planningContext
+    ? planningOutputSchema
+    : context.flowContext
+      ? flowOutputSchema
+      : outputSchema;
+export const requestResponseSchema = (context: ContextSnapshot) =>
+  context.planningContext ? planningResponseSchema : responseSchema;
 export const normalizeAiResponse = (value: unknown) =>
   normalizeOptionalNulls(value, responseJsonSchema);
+export const normalizePlanningResponse = (value: unknown) =>
+  normalizeOptionalNulls(value, z.toJSONSchema(planningResponseSchema));

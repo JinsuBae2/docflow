@@ -1,6 +1,11 @@
 import type { ContextSnapshot } from './contracts';
 export function contextPayload(context: ContextSnapshot) {
-  const { selection: _selection, flowEstimate: _estimate, ...payload } = context;
+  const {
+    selection: _selection,
+    flowEstimate: _estimate,
+    planningSelection: _planningSelection,
+    ...payload
+  } = context;
   return payload;
 }
 export function hasSourceEvidence(content: string) {

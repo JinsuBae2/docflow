@@ -1,5 +1,6 @@
 import { BookOpen, Network, GitBranch, ArrowUpRight } from 'lucide-react';
 import type { Workspace } from '../../../shared/contracts';
+import { isPlanningStart, planningStages, type PlanningMode } from '../../../shared/planning';
 import { projectBriefing } from '../../../shared/project-briefing';
 import { displayDocumentType } from '../../../shared/document-presentation';
 export function ProjectBriefing({
@@ -8,14 +9,56 @@ export function ProjectBriefing({
   onMap,
   onFlows,
   onReview,
+  onStartPlanning,
+  onResumePlanning,
 }: {
   workspace: Workspace;
   onDocument: (id: string) => void;
   onMap: () => void;
   onFlows: (mode: 'mermaid' | 'userflow', flowId?: string) => void;
   onReview: () => void;
+  onStartPlanning: (mode: PlanningMode) => void;
+  onResumePlanning: (id: string) => void;
 }) {
   const briefing = projectBriefing(workspace);
+  if (isPlanningStart(workspace.documents))
+    return (
+      <section className="planning-start">
+        <span className="planning-eyebrow">새 소프트웨어 프로젝트</span>
+        <h1>{workspace.project.name}</h1>
+        <h2>아이디어만 있어도 시작할 수 있습니다.</h2>
+        <p>문제와 사용자를 발견하고, MVP와 요구사항을 정리해 첫 문서로 만드세요.</p>
+        <div className="planning-start-options">
+          <button aria-label="브레인스토밍 시작" onClick={() => onStartPlanning('brainstorm')}>
+            <strong>브레인스토밍 시작</strong>
+            <span>아이디어를 이야기하며 문제·사용자·대안을 구체화합니다.</span>
+          </button>
+          <button aria-label="바로 계획 세우기" onClick={() => onStartPlanning('plan')}>
+            <strong>바로 계획 세우기</strong>
+            <span>정한 아이디어에서 MVP·요구사항·구현과 검증 순서를 정리합니다.</span>
+          </button>
+        </div>
+        {!!workspace.planningSessions?.length && (
+          <section>
+            <h3>기획 이어가기</h3>
+            {workspace.planningSessions.map((session, index) => (
+              <button
+                className="button"
+                key={session.id}
+                onClick={() => onResumePlanning(session.id)}
+              >
+                {index + 1}. {session.mode === 'brainstorm' ? '브레인스토밍' : '계획'} ·{' '}
+                {planningStages[session.stage]}
+              </button>
+            ))}
+          </section>
+        )}
+        <p>
+          기존 자료가 있다면 왼쪽에서 Markdown을 가져오거나, 문서 탭에서 직접 작성할 수 있습니다.
+        </p>
+      </section>
+    );
+
   return (
     <div className="project-briefing">
       <header className="briefing-heading">
