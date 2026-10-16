@@ -49,7 +49,7 @@ const descriptions: Record<string, string> = {
   저장: '현재 초안을 로컬 문서에 저장합니다. 외부 변경과 충돌하면 초안을 유지합니다. ⌘/Ctrl+S',
   '변경 취소': '저장하지 않은 편집 내용을 확인 후 취소하고 원래 문서로 돌아갑니다.',
   '문서 구조':
-    '문서 사이의 관계와 연결 방향을 살펴봅니다. 카드를 선택해 연결을 확인하거나 집중 보기로 탐색합니다.',
+    '기획 문서를 펼쳐 항목과 원문 근거를 확인합니다. 연결 탐색에서는 문서 사이의 관계를 편집합니다.',
   문서: '선택한 문서와 목차, 연결된 문서를 읽습니다.',
   '사용자 흐름': '문서 속 흐름과 AI 유저플로우를 탐색하고 검토합니다.',
   '요청 보내기':
@@ -145,7 +145,8 @@ export function Tooltip() {
     };
     const escape = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && target) {
-        event.stopImmediatePropagation();
+        if (!(event.target instanceof Element && event.target.closest('[role="dialog"]')))
+          event.stopImmediatePropagation();
         hide();
       }
     };

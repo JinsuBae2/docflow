@@ -56,6 +56,7 @@ test('connects documents by dragging, blocks invalid targets, edits and keeps AI
     await page.getByRole('button', { name: '안내 닫기' }).click();
     await page.getByRole('button', { name: '예제 프로젝트 열기' }).click();
     await page.getByRole('button', { name: '문서 구조', exact: true }).click();
+    await page.getByRole('button', { name: '연결 탐색', exact: true }).click();
 
     // Leave an AI proposal pending; drag connections must not accept or drop it.
     await page.getByRole('button', { name: 'AI로 연결 검토', exact: true }).click();
@@ -65,6 +66,7 @@ test('connects documents by dragging, blocks invalid targets, edits and keeps AI
       page.getByRole('button', { name: '제안 수락', exact: true }).first(),
     ).toBeVisible();
     await page.getByRole('button', { name: '문서 구조', exact: true }).click();
+    await page.getByRole('button', { name: '연결 탐색', exact: true }).click();
     await expect(page.locator('.react-flow__edge-proposal').first()).toBeVisible();
     const before = (await page.evaluate(() => window.workspace.current()))!;
     const pendingIds = before.proposals.filter((p) => p.status === 'pending').map((p) => p.id);
@@ -160,6 +162,7 @@ test('connects documents by dragging, blocks invalid targets, edits and keeps AI
     app = await launch();
     page = await app.firstWindow();
     await page.getByRole('button', { name: '문서 구조', exact: true }).click();
+    await page.getByRole('button', { name: '연결 탐색', exact: true }).click();
     const restored = (await page.evaluate(() => window.workspace.current()))!;
     expect(restored.relations.find((r) => r.id === added.id)?.type).toBe('수정한 연결');
     expect(restored.proposals.filter((p) => p.status === 'pending').map((p) => p.id)).toEqual(
